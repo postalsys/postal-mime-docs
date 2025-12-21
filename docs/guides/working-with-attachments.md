@@ -12,14 +12,15 @@ Attachments in postal-mime are returned as an array of objects with the followin
 
 ```javascript
 {
-    filename: string | null,     // Original filename
-    mimeType: string,            // MIME type (e.g., "application/pdf")
-    disposition: string | null,  // "attachment", "inline", or null
-    related: boolean,            // true if inline image
-    contentId: string,           // Content-ID for inline images
-    description: string,         // Content-Description header
+    filename: string | null,       // Original filename (may be null)
+    mimeType: string,              // MIME type (e.g., "application/pdf")
+    disposition: string | null,    // "attachment", "inline", or null
+    related?: boolean,             // true if inline image (optional)
+    contentId?: string,            // Content-ID for inline images (optional)
+    description?: string,          // Content-Description header (optional)
     content: ArrayBuffer | string, // File content
-    encoding: string             // "base64" or "utf8" if converted
+    encoding?: string,             // "base64" or "utf8" if converted (optional)
+    method?: string                // Calendar method for ICS files (optional)
 }
 ```
 

@@ -260,7 +260,7 @@ const addresses: Address[] = addressParser(headerValue, options);
 
 // Type guard for mailbox
 function isMailbox(addr: Address): addr is Mailbox {
-    return addr.group === undefined;
+    return !('group' in addr) || addr.group === undefined;
 }
 ```
 

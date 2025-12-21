@@ -151,12 +151,12 @@ postal-mime supports common character sets through the TextDecoder API:
 
 ### Unknown Charsets
 
-If an encoded-word uses an unsupported charset, the original encoded string is preserved:
+If an encoded-word uses an unsupported charset, the decoder falls back to `windows-1252`:
 
 ```javascript
 const encoded = '=?UNKNOWN-CHARSET?B?SGVsbG8=?=';
 const decoded = decodeWords(encoded);
-// May return original string if charset not supported
+// Falls back to windows-1252 decoding if charset not supported by TextDecoder
 ```
 
 ### Malformed Encoded-Words
