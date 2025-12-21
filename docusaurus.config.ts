@@ -17,7 +17,7 @@ const config: Config = {
   },
 
   url: 'https://postalsys.github.io',
-  baseUrl: '/postal-mime/',
+  baseUrl: '/',
 
   organizationName: 'postalsys',
   projectName: 'postal-mime',
