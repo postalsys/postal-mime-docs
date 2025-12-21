@@ -64,6 +64,11 @@ const config: Config = {
           label: 'Documentation',
         },
         {
+          to: '/demo',
+          position: 'left',
+          label: 'Live Demo',
+        },
+        {
           href: 'https://github.com/postalsys/postal-mime',
           label: 'GitHub',
           position: 'right',
@@ -97,7 +102,7 @@ const config: Config = {
           items: [
             {label: 'GitHub', href: 'https://github.com/postalsys/postal-mime'},
             {label: 'EmailEngine', href: 'https://emailengine.app/'},
-            {label: 'Live Demo', href: 'https://kreata.ee/postal-mime/example/'},
+            {label: 'Live Demo', to: '/demo'},
           ],
         },
       ],

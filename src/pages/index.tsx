@@ -26,8 +26,8 @@ function HomepageHeader() {
           <Link
             className="button button--outline button--secondary button--lg"
             style={{marginLeft: '1rem'}}
-            to="/docs/api/postal-mime">
-            API Reference
+            to="/demo">
+            Try Demo
           </Link>
         </div>
         <div className={styles.installCommand}>
