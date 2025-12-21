@@ -130,13 +130,33 @@ function getAttachmentIcon(mimeType: string): string {
   return '📎';
 }
 
+function buildIframeSrcdoc(html: string): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      line-height: 1.5;
+    }
+    img { max-width: 100%; height: auto; }
+    pre { white-space: pre-wrap; word-wrap: break-word; }
+  </style>
+</head>
+<body>${html}</body>
+</html>`;
+}
+
 export default function Demo(): ReactNode {
   const [email, setEmail] = useState<ParsedEmail | null>(null);
+  const [htmlContent, setHtmlContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -145,6 +165,7 @@ export default function Demo(): ReactNode {
     setLoading(true);
     setError(null);
     setEmail(null);
+    setHtmlContent(null);
     setFileName(file.name);
 
     try {
@@ -156,39 +177,14 @@ export default function Demo(): ReactNode {
 
       setEmail(parsed as ParsedEmail);
 
-      // Update iframe content after state is set
-      setTimeout(() => {
-        if (iframeRef.current && parsed.html) {
-          const processedHtml = processHtmlWithAttachments(
-            parsed.html,
-            (parsed.attachments || []) as Attachment[]
-          );
-          const doc = iframeRef.current.contentDocument;
-          if (doc) {
-            doc.open();
-            doc.write(`
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <meta charset="utf-8">
-                <style>
-                  body {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    margin: 0;
-                    padding: 16px;
-                    line-height: 1.5;
-                  }
-                  img { max-width: 100%; height: auto; }
-                  pre { white-space: pre-wrap; word-wrap: break-word; }
-                </style>
-              </head>
-              <body>${processedHtml}</body>
-              </html>
-            `);
-            doc.close();
-          }
-        }
-      }, 0);
+      // Process HTML content with inline images
+      if (parsed.html) {
+        const processedHtml = processHtmlWithAttachments(
+          parsed.html,
+          (parsed.attachments || []) as Attachment[]
+        );
+        setHtmlContent(buildIframeSrcdoc(processedHtml));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse email');
     } finally {
@@ -369,13 +365,13 @@ export default function Demo(): ReactNode {
                     </div>
                   )}
 
-                  {email.html ? (
+                  {htmlContent ? (
                     <div className={styles.contentFrame}>
                       <iframe
-                        ref={iframeRef}
                         className={styles.iframe}
                         title="Email content"
-                        sandbox="allow-same-origin"
+                        sandbox=""
+                        srcDoc={htmlContent}
                       />
                     </div>
                   ) : email.text ? (
