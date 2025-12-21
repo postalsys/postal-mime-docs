@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1565c0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d47a1;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="envelopeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#42a5f5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1976d2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#cardBg)"/>
+
+  <!-- Decorative pattern -->
+  <g opacity="0.1">
+    <circle cx="100" cy="100" r="80" fill="#fff"/>
+    <circle cx="1100" cy="530" r="120" fill="#fff"/>
+    <circle cx="1050" cy="100" r="60" fill="#fff"/>
+    <circle cx="150" cy="530" r="100" fill="#fff"/>
+  </g>
+
+  <!-- Main content area -->
+  <rect x="80" y="80" width="1040" height="470" fill="rgba(255,255,255,0.05)" rx="20"/>
+
+  <!-- Logo/Icon -->
+  <g transform="translate(140, 150)">
+    <!-- Envelope body -->
+    <rect x="0" y="30" width="120" height="85" fill="url(#envelopeGradient)" rx="8"/>
+    <!-- Envelope flap -->
+    <path d="M0 38 L60 0 L120 38" fill="#64b5f6"/>
+    <!-- Fold lines -->
+    <path d="M0 30 L60 65 L120 30" fill="none" stroke="#fff" stroke-width="2" opacity="0.6"/>
+    <!-- Code brackets -->
+    <text x="35" y="80" font-family="monospace" font-size="28" font-weight="bold" fill="#fff">{ }</text>
+    <!-- Check badge -->
+    <circle cx="105" cy="15" r="12" fill="#4caf50"/>
+    <path d="M99 15 L103 19 L113 9" stroke="#fff" stroke-width="3" fill="none"/>
+  </g>
+
+  <!-- Title -->
+  <text x="300" y="200" font-family="sans-serif" font-size="72" font-weight="bold" fill="#fff">postal-mime</text>
+
+  <!-- Tagline -->
+  <text x="300" y="260" font-family="sans-serif" font-size="28" fill="rgba(255,255,255,0.9)">Email parsing library for browser environments</text>
+  <text x="300" y="295" font-family="sans-serif" font-size="28" fill="rgba(255,255,255,0.9)">and serverless functions</text>
+
+  <!-- Feature badges -->
+  <g transform="translate(300, 340)">
+    <!-- Zero Dependencies -->
+    <rect x="0" y="0" width="200" height="40" fill="#4caf50" rx="20"/>
+    <text x="100" y="27" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#fff" font-weight="bold">Zero Dependencies</text>
+
+    <!-- TypeScript -->
+    <rect x="220" y="0" width="180" height="40" fill="#3178c6" rx="20"/>
+    <text x="310" y="27" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#fff" font-weight="bold">TypeScript Ready</text>
+
+    <!-- RFC Compliant -->
+    <rect x="420" y="0" width="170" height="40" fill="#ff9800" rx="20"/>
+    <text x="505" y="27" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#fff" font-weight="bold">RFC Compliant</text>
+  </g>
+
+  <!-- Install command -->
+  <rect x="300" y="410" width="380" height="50" fill="rgba(0,0,0,0.3)" rx="8"/>
+  <text x="320" y="443" font-family="monospace" font-size="20" fill="#4caf50">$</text>
+  <text x="345" y="443" font-family="monospace" font-size="20" fill="#fff">npm install postal-mime</text>
+
+  <!-- URL -->
+  <text x="600" y="590" text-anchor="middle" font-family="sans-serif" font-size="18" fill="rgba(255,255,255,0.7)">github.com/postalsys/postal-mime</text>
+</svg>

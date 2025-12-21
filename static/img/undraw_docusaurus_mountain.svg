@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <title>Zero Dependencies</title>
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e3f2fd;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#bbdefb;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1976d2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1565c0;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="300" fill="url(#bgGrad)" rx="10"/>
+
+  <!-- Main package box -->
+  <rect x="140" y="80" width="120" height="90" fill="url(#boxGrad)" rx="8"/>
+
+  <!-- Package highlight -->
+  <rect x="140" y="80" width="120" height="15" fill="#42a5f5" rx="8"/>
+  <rect x="140" y="85" width="120" height="10" fill="#42a5f5"/>
+
+  <!-- Package label -->
+  <text x="200" y="135" text-anchor="middle" font-family="monospace" font-size="14" fill="#fff" font-weight="bold">postal-mime</text>
+
+  <!-- Check mark badge -->
+  <circle cx="240" cy="90" r="15" fill="#4caf50"/>
+  <path d="M233 90 L238 95 L248 85" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Zero dependencies indicator -->
+  <rect x="125" y="190" width="150" height="35" fill="#fff" rx="5" stroke="#1976d2" stroke-width="2"/>
+  <text x="200" y="213" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#1976d2" font-weight="bold">0 Dependencies</text>
+
+  <!-- Floating elements representing no chains -->
+  <circle cx="80" cy="100" r="8" fill="#e0e0e0"/>
+  <circle cx="320" cy="100" r="8" fill="#e0e0e0"/>
+  <circle cx="80" cy="180" r="8" fill="#e0e0e0"/>
+  <circle cx="320" cy="180" r="8" fill="#e0e0e0"/>
+
+  <!-- X marks on floating elements to show no connections -->
+  <path d="M76 96 L84 104 M84 96 L76 104" stroke="#f44336" stroke-width="2"/>
+  <path d="M316 96 L324 104 M324 96 L316 104" stroke="#f44336" stroke-width="2"/>
+  <path d="M76 176 L84 184 M84 176 L76 184" stroke="#f44336" stroke-width="2"/>
+  <path d="M316 176 L324 184 M324 176 L316 184" stroke="#f44336" stroke-width="2"/>
+
+  <!-- Bundle size indicator -->
+  <text x="200" y="260" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#666">~15KB minified</text>
+</svg>

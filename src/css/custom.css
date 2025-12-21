@@ -1,0 +1,84 @@
+/**
+ * Custom styles for postal-mime documentation
+ * Color scheme inspired by email/mail themes - deep blue with teal accents
+ */
+
+:root {
+  --ifm-color-primary: #1976d2;
+  --ifm-color-primary-dark: #1565c0;
+  --ifm-color-primary-darker: #1258a7;
+  --ifm-color-primary-darkest: #0d47a1;
+  --ifm-color-primary-light: #2196f3;
+  --ifm-color-primary-lighter: #42a5f5;
+  --ifm-color-primary-lightest: #64b5f6;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(25, 118, 210, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #42a5f5;
+  --ifm-color-primary-dark: #2196f3;
+  --ifm-color-primary-darker: #1e88e5;
+  --ifm-color-primary-darkest: #1976d2;
+  --ifm-color-primary-light: #64b5f6;
+  --ifm-color-primary-lighter: #90caf9;
+  --ifm-color-primary-lightest: #bbdefb;
+  --docusaurus-highlighted-code-line-bg: rgba(66, 165, 245, 0.2);
+}
+
+/* Feature card styling */
+.features-section {
+  padding: 2rem 0;
+}
+
+/* Code block enhancements */
+.prism-code {
+  font-size: 0.9rem;
+}
+
+/* API reference table styling */
+.api-table {
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.api-table th {
+  text-align: left;
+  background-color: var(--ifm-color-emphasis-100);
+}
+
+.api-table td,
+.api-table th {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Badge styling for TypeScript support indicators */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+  margin-left: 0.5rem;
+}
+
+.badge--typescript {
+  background-color: #3178c6;
+  color: white;
+}
+
+.badge--zero-deps {
+  background-color: #22c55e;
+  color: white;
+}
+
+/* Improve navbar */
+.navbar__title {
+  font-weight: 700;
+}
+
+/* Footer links styling */
+.footer__link-item:hover {
+  text-decoration: underline;
+}
