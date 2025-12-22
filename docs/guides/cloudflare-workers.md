@@ -50,6 +50,73 @@ export default {
 };
 ```
 
+## Local Development
+
+Wrangler provides local testing capabilities for Email Workers without deploying to Cloudflare.
+
+### Running the Development Server
+
+Start the local development server:
+
+```bash
+npx wrangler dev
+```
+
+### Testing Email Reception
+
+Wrangler exposes a local endpoint at `/cdn-cgi/handler/email`. Send test emails using curl:
+
+```bash
+curl --request POST 'http://localhost:8787/cdn-cgi/handler/email' \
+  --url-query 'from=sender@example.com' \
+  --url-query 'to=recipient@example.com' \
+  --header 'Content-Type: application/json' \
+  --data-raw 'From: sender@example.com
+To: recipient@example.com
+Subject: Test Email
+
+This is a test email body.'
+```
+
+### Testing with .eml Files
+
+You can also send a complete .eml file:
+
+```bash
+curl --request POST 'http://localhost:8787/cdn-cgi/handler/email' \
+  --url-query 'from=sender@example.com' \
+  --url-query 'to=recipient@example.com' \
+  --header 'Content-Type: application/json' \
+  --data-binary @test-email.eml
+```
+
+### Sending Emails Locally
+
+To test sending emails, add the `send_email` binding to your wrangler configuration:
+
+```toml
+[[send_email]]
+name = "EMAIL"
+```
+
+Or in `wrangler.jsonc`:
+
+```jsonc
+{
+  "send_email": [
+    {
+      "name": "EMAIL"
+    }
+  ]
+}
+```
+
+When running locally, Wrangler simulates sending by writing emails to `.eml` files and displays the file paths in the terminal.
+
+### Local Simulation of reply() and forward()
+
+The `message.reply()` and `message.forward()` methods also work locally. Wrangler simulates their execution and outputs the resulting email file paths to the terminal for inspection.
+
 ## Common Patterns
 
 ### Forward Based on Content
