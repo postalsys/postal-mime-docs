@@ -143,12 +143,20 @@ The parsed email object contains the following properties:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `headers` | `Header[]` | Array of all headers |
+| `headers` | `Header[]` | Array of all headers (normalized values) |
+| `headerLines` | `HeaderLine[]` | Array of raw header lines (original formatting) |
 
 ```javascript
+// Normalized headers (whitespace collapsed, encoded words decoded)
 email.headers.forEach(header => {
     console.log(header.key);   // Lowercase header name
-    console.log(header.value); // Header value
+    console.log(header.value); // Normalized header value
+});
+
+// Raw header lines (preserves original formatting for DKIM, etc.)
+email.headerLines.forEach(headerLine => {
+    console.log(headerLine.key);  // Lowercase header name
+    console.log(headerLine.line); // Complete raw header line
 });
 ```
 

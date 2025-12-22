@@ -15,6 +15,7 @@ import type {
     Address,
     Mailbox,
     Header,
+    HeaderLine,
     Attachment,
     PostalMimeOptions,
     AddressParserOptions,
@@ -78,6 +79,42 @@ type Header = {
 const contentType = email.headers.find(
     (h: Header) => h.key === 'content-type'
 );
+```
+
+## HeaderLine
+
+Raw header line preserving original formatting:
+
+```typescript
+type HeaderLine = {
+    key: string;   // Lowercase header name
+    line: string;  // Complete raw header line (key + value, folded lines merged)
+};
+```
+
+Unlike `Header.value`, the `line` property preserves the original header formatting before normalization, including:
+- Encoded words (MIME encoded-word syntax)
+- Original whitespace
+- Folded lines (merged with newlines preserved)
+
+This is useful for:
+- DKIM signature verification
+- Passing headers to external decoders like `libmime.decodeHeader()`
+- Debugging email formatting issues
+
+### Example
+
+```typescript
+// headers normalizes values, headerLines preserves raw format
+const email = await PostalMime.parse(rawEmail);
+
+// Normalized header (whitespace collapsed, encoded words decoded)
+const subjectHeader = email.headers.find(h => h.key === 'subject');
+console.log(subjectHeader.value); // "Hello World"
+
+// Raw header line (original formatting preserved)
+const subjectLine = email.headerLines.find(h => h.key === 'subject');
+console.log(subjectLine.line); // "Subject: =?UTF-8?B?SGVsbG8=?= World"
 ```
 
 ## Address
@@ -156,6 +193,7 @@ Complete parsed email:
 ```typescript
 type Email = {
     headers: Header[];
+    headerLines: HeaderLine[];
     from?: Address;
     sender?: Address;
     replyTo?: Address[];
@@ -179,7 +217,8 @@ type Email = {
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `headers` | `Header[]` | All email headers |
+| `headers` | `Header[]` | All email headers (normalized) |
+| `headerLines` | `HeaderLine[]` | Raw header lines (original formatting) |
 | `from` | `Address` | From address |
 | `sender` | `Address` | Sender address |
 | `replyTo` | `Address[]` | Reply-To addresses |
