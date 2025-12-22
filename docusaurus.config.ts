@@ -42,6 +42,14 @@ const config: Config = {
     locales: ['en'],
   },
 
+  scripts: [
+    {
+      src: 'https://plausible.emailengine.dev/js/script.js',
+      defer: true,
+      'data-domain': 'postal-mime.postalsys.com',
+    },
+  ],
+
   presets: [
     [
       'classic',
