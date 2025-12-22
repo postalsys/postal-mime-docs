@@ -10,7 +10,20 @@ const config: Config = {
   markdown: {
     mermaid: true,
   },
-  themes: ['@docusaurus/theme-mermaid'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        hashed: true,
+        language: ['en'],
+        highlightSearchTermsOnTargetPage: true,
+        explicitSearchResultPath: true,
+        docsRouteBasePath: '/docs',
+        indexBlog: false,
+      },
+    ],
+  ],
 
   future: {
     v4: true,
@@ -64,6 +77,11 @@ const config: Config = {
           label: 'Documentation',
         },
         {
+          to: '/docs/guides/cloudflare-workers',
+          position: 'left',
+          label: 'Cloudflare Workers',
+        },
+        {
           to: '/demo',
           position: 'left',
           label: 'Live Demo',
@@ -87,6 +105,7 @@ const config: Config = {
           title: 'Docs',
           items: [
             {label: 'Getting Started', to: '/docs/'},
+            {label: 'Cloudflare Workers', to: '/docs/guides/cloudflare-workers'},
             {label: 'API Reference', to: '/docs/api/postal-mime'},
           ],
         },
