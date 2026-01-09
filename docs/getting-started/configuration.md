@@ -55,6 +55,10 @@ email.attachments.forEach(att => {
 });
 ```
 
+:::note Auto-detection for Delivery Reports
+Even without this option, postal-mime automatically enables `forceRfc822Attachments` behavior when it detects `message/delivery-status` or `message/feedback-report` content types. This ensures bounce messages and feedback reports are parsed correctly with their nested original messages available as attachments.
+:::
+
 ### attachmentEncoding
 
 Controls how attachment content is returned. Options:

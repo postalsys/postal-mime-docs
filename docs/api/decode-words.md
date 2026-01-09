@@ -149,6 +149,17 @@ postal-mime supports common character sets through the TextDecoder API:
 
 ## Behavior Notes
 
+### RFC 2231 Language Tags
+
+RFC 2231 allows language tags in encoded-words (e.g., `=?UTF-8*en?B?...?=`). postal-mime silently strips these language tags during decoding:
+
+```javascript
+// Language tag is ignored, only charset is used
+const encoded = '=?UTF-8*en-US?B?SGVsbG8=?=';
+const decoded = decodeWords(encoded);
+console.log(decoded); // "Hello"
+```
+
 ### Unknown Charsets
 
 If an encoded-word uses an unsupported charset, the decoder falls back to `windows-1252`:

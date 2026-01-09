@@ -92,6 +92,16 @@ const response = await fetch('/path/to/email.eml');
 const email = await PostalMime.parse(response.body);
 ```
 
+This is particularly useful for streaming large emails without loading them entirely into memory:
+
+```javascript
+// Fetch and parse in one step using the stream directly
+const response = await fetch('https://example.com/email.eml');
+const email = await PostalMime.parse(response.body);
+
+console.log(email.subject);
+```
+
 ## Working with Headers
 
 ### All Headers
@@ -158,6 +168,28 @@ addresses.forEach(addr => {
 ```
 
 ## Text and HTML Content
+
+### Format=Flowed Text
+
+postal-mime automatically handles RFC 3676 format=flowed text, which is used by some email clients to enable soft line wrapping:
+
+```javascript
+// Format=flowed text is automatically unwrapped
+const email = await PostalMime.parse(flowedEmail);
+console.log(email.text); // Paragraphs are properly joined
+```
+
+The `delsp` (delete space) parameter is also supported for proper space handling at line breaks.
+
+### Multipart/Digest Handling
+
+Per RFC 2046, parts inside `multipart/digest` messages default to `message/rfc822` content type instead of `text/plain`. postal-mime handles this automatically:
+
+```javascript
+// Digest messages contain multiple forwarded emails
+const email = await PostalMime.parse(digestEmail);
+// Each part is correctly treated as message/rfc822
+```
 
 ### Multipart/Alternative Handling
 

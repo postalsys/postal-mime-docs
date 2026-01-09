@@ -8,6 +8,8 @@ This guide covers how to extract, process, and work with email attachments using
 
 ## Understanding Attachments
 
+postal-mime automatically handles RFC 2231 parameter value continuations, which are used for long filenames that span multiple header lines. You don't need to do anything special - filenames are automatically reassembled.
+
 Attachments in postal-mime are returned as an array of objects with the following properties:
 
 ```javascript
@@ -254,6 +256,11 @@ const smallAttachments = email.attachments.filter(
 
 Calendar events (ICS files) receive special handling:
 
+- Content is decoded to UTF-8 text
+- Line endings are normalized to `\n` (LF)
+- The `method` parameter is extracted from the Content-Type header
+- Content is returned as `Uint8Array` (not `ArrayBuffer`)
+
 ```javascript
 const calendarEvents = email.attachments.filter(
     att => att.mimeType === 'text/calendar' ||
@@ -264,12 +271,16 @@ calendarEvents.forEach(event => {
     console.log(`Calendar event method: ${event.method}`);
     // event.method can be "REQUEST", "REPLY", "CANCEL", etc.
 
-    // Content is normalized to UTF-8
+    // Content is already normalized UTF-8 as Uint8Array
     const decoder = new TextDecoder();
     const icsContent = decoder.decode(event.content);
     console.log(icsContent);
 });
 ```
+
+:::tip
+The `method` property indicates the calendar action: `REQUEST` for meeting invitations, `REPLY` for responses, `CANCEL` for cancellations, and `PUBLISH` for published events.
+:::
 
 ## Complete Attachment Handler
 

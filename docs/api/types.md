@@ -183,7 +183,7 @@ type Attachment = {
 | `description` | `string` | Content-Description header |
 | `contentId` | `string` | Content-ID (for inline references) |
 | `method` | `string` | Calendar method (for text/calendar) |
-| `content` | `ArrayBuffer \| string` | File content |
+| `content` | `ArrayBuffer \| Uint8Array \| string` | File content |
 | `encoding` | `string` | `'base64'` or `'utf8'` if converted |
 
 ## Email
@@ -260,7 +260,7 @@ import type {
 
 // Type guard for mailbox
 function isMailbox(addr: Address): addr is Mailbox {
-    return addr.group === undefined;
+    return !('group' in addr) || addr.group === undefined;
 }
 
 // Parse with options
