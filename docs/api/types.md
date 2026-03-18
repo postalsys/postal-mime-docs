@@ -105,14 +105,20 @@ This is useful for:
 ### Example
 
 ```typescript
-// headers normalizes values, headerLines preserves raw format
 const email = await PostalMime.parse(rawEmail);
 
-// Normalized header (whitespace collapsed, encoded words decoded)
+// headers[].value has folding whitespace collapsed but encoded words are NOT decoded
 const subjectHeader = email.headers.find(h => h.key === 'subject');
-console.log(subjectHeader.value); // "Hello World"
+console.log(subjectHeader.value); // "=?UTF-8?B?SGVsbG8=?= World" (encoded words preserved)
 
-// Raw header line (original formatting preserved)
+// email.subject IS decoded (postal-mime decodes specific properties automatically)
+console.log(email.subject); // "Hello World"
+
+// Use decodeWords() to decode header values manually:
+// import { decodeWords } from 'postal-mime';
+// console.log(decodeWords(subjectHeader.value)); // "Hello World"
+
+// headerLines preserves the complete raw format including folding
 const subjectLine = email.headerLines.find(h => h.key === 'subject');
 console.log(subjectLine.line); // "Subject: =?UTF-8?B?SGVsbG8=?= World"
 ```
@@ -217,7 +223,7 @@ type Email = {
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `headers` | `Header[]` | All email headers (normalized) |
+| `headers` | `Header[]` | All email headers (folding whitespace collapsed, values not decoded) |
 | `headerLines` | `HeaderLine[]` | Raw header lines (original formatting) |
 | `from` | `Address` | From address |
 | `sender` | `Address` | Sender address |

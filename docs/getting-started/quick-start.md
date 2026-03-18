@@ -64,7 +64,7 @@ console.log(email.attachments); // Array of attachments
 
 ## Parsing HTML Emails
 
-postal-mime automatically extracts both plain text and HTML content:
+postal-mime extracts content based on what is present in the email:
 
 ```javascript
 const htmlEmail = `Subject: Newsletter
@@ -76,8 +76,12 @@ Content-Type: text/html; charset=utf-8
 const email = await PostalMime.parse(htmlEmail);
 
 console.log(email.html); // "<h1>Welcome!</h1>\n<p>Thanks for subscribing.</p>"
-console.log(email.text); // Automatically converted: "Welcome!\nThanks for subscribing."
+console.log(email.text); // undefined (only HTML was provided)
 ```
+
+:::note
+For single-part emails, only the format present in the message is returned. If the email contains only HTML, `email.text` will be `undefined`, and vice versa. Both `text` and `html` are available when the email uses `multipart/alternative` to provide both formats.
+:::
 
 ## Parsing Emails with Attachments
 

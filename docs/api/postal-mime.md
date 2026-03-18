@@ -143,14 +143,15 @@ The parsed email object contains the following properties:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `headers` | `Header[]` | Array of all headers (normalized values) |
+| `headers` | `Header[]` | Array of all headers (folding whitespace collapsed, values not decoded) |
 | `headerLines` | `HeaderLine[]` | Array of raw header lines (original formatting) |
 
 ```javascript
-// Normalized headers (whitespace collapsed, encoded words decoded)
+// Headers with folding whitespace collapsed (encoded words are NOT decoded)
 email.headers.forEach(header => {
-    console.log(header.key);   // Lowercase header name
-    console.log(header.value); // Normalized header value
+    console.log(header.key);         // Lowercase header name
+    console.log(header.originalKey); // Original header name preserving case
+    console.log(header.value);       // Header value (not decoded — use decodeWords() if needed)
 });
 
 // Raw header lines (preserves original formatting for DKIM, etc.)
@@ -159,6 +160,18 @@ email.headerLines.forEach(headerLine => {
     console.log(headerLine.line); // Complete raw header line
 });
 ```
+
+:::tip
+The `headerLines` property is useful for DKIM signature verification and other cases where original header formatting must be preserved:
+
+```javascript
+const dkimLine = email.headerLines.find(h => h.key === 'dkim-signature');
+if (dkimLine) {
+    console.log(dkimLine.line);
+    // Original folding, whitespace, and encoded words are preserved
+}
+```
+:::
 
 ### Addresses
 

@@ -38,6 +38,23 @@ For browser environments, you can import directly from the `src` folder:
 import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
 ```
 
+### Deno
+
+Use the `npm:` specifier to import postal-mime in Deno:
+
+```typescript
+import PostalMime from 'npm:postal-mime';
+import { addressParser, decodeWords } from 'npm:postal-mime';
+```
+
+### Bun
+
+Bun supports npm packages directly with the same syntax as Node.js:
+
+```javascript
+import PostalMime from 'postal-mime';
+```
+
 ## Environment Support
 
 postal-mime works in the following environments:

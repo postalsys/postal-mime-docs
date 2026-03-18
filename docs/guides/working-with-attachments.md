@@ -282,6 +282,28 @@ calendarEvents.forEach(event => {
 The `method` property indicates the calendar action: `REQUEST` for meeting invitations, `REPLY` for responses, `CANCEL` for cancellations, and `PUBLISH` for published events.
 :::
 
+#### Parsing ICS Content
+
+```javascript
+calendarEvents.forEach(event => {
+    const decoder = new TextDecoder();
+    const icsContent = decoder.decode(event.content);
+
+    // Extract key properties from ICS
+    const summary = icsContent.match(/SUMMARY:(.*)/)?.[1];
+    const dtstart = icsContent.match(/DTSTART[^:]*:(.*)/)?.[1];
+    const dtend = icsContent.match(/DTEND[^:]*:(.*)/)?.[1];
+    const location = icsContent.match(/LOCATION:(.*)/)?.[1];
+
+    console.log(`Event: ${summary}`);
+    console.log(`Start: ${dtstart}`);
+    console.log(`End: ${dtend}`);
+    console.log(`Location: ${location}`);
+    console.log(`Action: ${event.method}`);
+    // event.method: "REQUEST", "REPLY", "CANCEL", "PUBLISH"
+});
+```
+
 ## Complete Attachment Handler
 
 ```javascript

@@ -171,15 +171,31 @@ addresses.forEach(addr => {
 
 ### Format=Flowed Text
 
-postal-mime automatically handles RFC 3676 format=flowed text, which is used by some email clients to enable soft line wrapping:
+postal-mime automatically handles RFC 3676 `format=flowed` text, which is used by some email clients to enable soft line wrapping. Lines ending with a trailing space are "soft" line breaks and get joined with the next line:
 
 ```javascript
-// Format=flowed text is automatically unwrapped
-const email = await PostalMime.parse(flowedEmail);
-console.log(email.text); // Paragraphs are properly joined
+const rawEmail = `Content-Type: text/plain; charset=utf-8; format=flowed
+
+This is a long paragraph that has been \r
+soft-wrapped by the email client into \r
+multiple lines.\r
+\r
+This is a new paragraph.\r
+-- \r
+My Signature`;
+
+const email = await PostalMime.parse(rawEmail);
+console.log(email.text);
+// "This is a long paragraph that has been soft-wrapped by the email client into multiple lines.
+//
+// This is a new paragraph.
+// --
+// My Signature"
 ```
 
-The `delsp` (delete space) parameter is also supported for proper space handling at line breaks.
+Note that the signature separator (`"-- "`) is preserved as a line break even though it ends with a space (per RFC 3676 Section 4.3).
+
+When `delsp=yes` is set in the Content-Type, the trailing space used for folding is removed during unwrapping, allowing languages without word separators (like Japanese) to be soft-wrapped correctly.
 
 ### Multipart/Digest Handling
 
@@ -200,20 +216,37 @@ console.log(email.text); // Plain text version
 console.log(email.html); // HTML version
 ```
 
-### Automatic Conversion
+### Content Availability
 
-If only one format exists, postal-mime automatically generates the other:
+For single-part emails, only the format present in the message is returned:
 
 ```javascript
 // Email with only HTML content
 const htmlOnlyEmail = await PostalMime.parse(htmlEmail);
 console.log(htmlOnlyEmail.html); // Original HTML
-console.log(htmlOnlyEmail.text); // Automatically converted to plain text
+console.log(htmlOnlyEmail.text); // undefined
 
 // Email with only text content
 const textOnlyEmail = await PostalMime.parse(textEmail);
 console.log(textOnlyEmail.text); // Original text
-console.log(textOnlyEmail.html); // Automatically converted to HTML
+console.log(textOnlyEmail.html); // undefined
+```
+
+### Automatic Conversion in Multipart
+
+When a `multipart/mixed` message contains both `text/plain` and `text/html` parts, postal-mime makes both formats available. If one part of the tree only provides one format while other parts provide the other, postal-mime converts the available format to fill in the gap:
+
+```javascript
+// multipart/alternative with both formats — both are directly available
+const email = await PostalMime.parse(multipartAlternativeEmail);
+console.log(email.text); // Plain text version
+console.log(email.html); // HTML version
+
+// multipart/mixed with text/plain and text/html parts
+// Both types are available, with cross-conversion where needed
+const mixedEmail = await PostalMime.parse(multipartMixedEmail);
+console.log(mixedEmail.text); // Includes htmlToText() conversion of HTML-only parts
+console.log(mixedEmail.html); // Includes textToHtml() conversion of text-only parts
 ```
 
 ## Handling Nested Emails

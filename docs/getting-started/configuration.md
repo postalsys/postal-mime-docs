@@ -59,6 +59,31 @@ email.attachments.forEach(att => {
 Even without this option, postal-mime automatically enables `forceRfc822Attachments` behavior when it detects `message/delivery-status` or `message/feedback-report` content types. This ensures bounce messages and feedback reports are parsed correctly with their nested original messages available as attachments.
 :::
 
+#### Example: Parsing a Bounce Message
+
+```javascript
+const email = await PostalMime.parse(bounceMessage);
+
+// Check for delivery status parts
+const deliveryStatus = email.attachments.find(
+    att => att.mimeType === 'message/delivery-status'
+);
+
+// The original message is automatically available as an attachment
+const originalMessage = email.attachments.find(
+    att => att.mimeType === 'message/rfc822'
+);
+
+if (originalMessage) {
+    // Parse the original bounced message
+    const decoder = new TextDecoder();
+    const original = await PostalMime.parse(
+        decoder.decode(originalMessage.content)
+    );
+    console.log('Bounced subject:', original.subject);
+}
+```
+
 ### attachmentEncoding
 
 Controls how attachment content is returned. Options:
