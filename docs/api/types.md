@@ -4,6 +4,8 @@ sidebar_position: 4
 
 # Types
 
+<img src="/img/mascot/checklist.png" alt="postal-mime mascot with checklist" className="mascot-header" />
+
 TypeScript type definitions for postal-mime.
 
 ## Importing Types

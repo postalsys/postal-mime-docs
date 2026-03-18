@@ -4,6 +4,8 @@ sidebar_position: 2
 
 # Quick Start
 
+<img src="/img/mascot/carrying.png" alt="postal-mime mascot carrying emails" className="mascot-header" />
+
 This guide will help you parse your first email with postal-mime in just a few minutes.
 
 ## Basic Usage

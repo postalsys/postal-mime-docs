@@ -4,6 +4,8 @@ sidebar_position: 1
 
 # Basic Parsing
 
+<img src="/img/mascot/overwhelmed.png" alt="postal-mime mascot with emails" className="mascot-header" />
+
 Examples of common email parsing scenarios.
 
 ## Simple Text Email

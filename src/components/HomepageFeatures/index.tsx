@@ -6,7 +6,7 @@ import styles from './styles.module.css';
 
 type FeatureItem = {
   title: string;
-  Svg: React.ComponentType<React.ComponentProps<'svg'>>;
+  image: string;
   description: ReactNode;
   link?: string;
   linkText?: string;
@@ -15,7 +15,7 @@ type FeatureItem = {
 const FeatureList: FeatureItem[] = [
   {
     title: 'Zero Dependencies',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    image: '/img/mascot/parsing.png',
     description: (
       <>
         Lightweight and self-contained. No external dependencies means faster
@@ -25,7 +25,7 @@ const FeatureList: FeatureItem[] = [
   },
   {
     title: 'Cloudflare Email Workers',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    image: '/img/mascot/server.png',
     description: (
       <>
         Perfect for Cloudflare Email Workers. Parse incoming emails, extract
@@ -37,7 +37,7 @@ const FeatureList: FeatureItem[] = [
   },
   {
     title: 'TypeScript Ready',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    image: '/img/mascot/structure.png',
     description: (
       <>
         Full TypeScript definitions included. Get complete type safety and
@@ -47,11 +47,11 @@ const FeatureList: FeatureItem[] = [
   },
 ];
 
-function Feature({title, Svg, description, link, linkText}: FeatureItem) {
+function Feature({title, image, description, link, linkText}: FeatureItem) {
   return (
     <div className={clsx('col col--4')}>
       <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
+        <img src={image} className={styles.featureImg} alt={title} />
       </div>
       <div className="text--center padding-horiz--md">
         <Heading as="h3">{title}</Heading>

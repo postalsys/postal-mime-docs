@@ -67,7 +67,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: 'img/postal-mime-social-card.svg',
+    image: 'img/postal-mime-social-card.png',
     colorMode: {
       respectPrefersColorScheme: true,
     },
@@ -75,7 +75,7 @@ const config: Config = {
       title: 'postal-mime',
       logo: {
         alt: 'postal-mime Logo',
-        src: 'img/logo.svg',
+        src: 'img/navbar-logo.png',
       },
       items: [
         {

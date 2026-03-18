@@ -4,6 +4,8 @@ sidebar_position: 3
 
 # Configuration
 
+<img src="/img/mascot/sorting.png" alt="postal-mime mascot sorting" className="mascot-header" />
+
 postal-mime provides several options to customize how emails are parsed.
 
 ## Options Overview

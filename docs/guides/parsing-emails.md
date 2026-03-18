@@ -4,6 +4,8 @@ sidebar_position: 1
 
 # Parsing Emails
 
+<img src="/img/mascot/parsing.png" alt="postal-mime mascot parsing" className="mascot-header" />
+
 This guide covers the fundamentals of email parsing with postal-mime, including handling different email formats and structures.
 
 ## Understanding Email Structure

@@ -82,3 +82,21 @@
 .footer__link-item:hover {
   text-decoration: underline;
 }
+
+/* Mascot images in doc pages */
+.mascot-header {
+  float: right;
+  width: 140px;
+  height: auto;
+  margin: 0 0 1rem 1.5rem;
+  opacity: 0.9;
+}
+
+@media (max-width: 600px) {
+  .mascot-header {
+    float: none;
+    display: block;
+    margin: 0 auto 1rem;
+    width: 120px;
+  }
+}

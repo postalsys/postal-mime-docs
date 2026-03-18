@@ -4,6 +4,8 @@ sidebar_position: 4
 
 # Security
 
+<img src="/img/mascot/catching.png" alt="postal-mime mascot catching threats" className="mascot-header" />
+
 postal-mime includes built-in security measures and provides configuration options for handling untrusted email input safely.
 
 ## Built-in Protections

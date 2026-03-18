@@ -4,6 +4,8 @@ sidebar_position: 2
 
 # Web Worker
 
+<img src="/img/mascot/routing.png" alt="postal-mime mascot routing" className="mascot-header" />
+
 Use postal-mime in Web Workers for background email processing without blocking the main thread.
 
 ## Why Use Web Workers?

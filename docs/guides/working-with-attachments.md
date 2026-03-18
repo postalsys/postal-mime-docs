@@ -4,6 +4,8 @@ sidebar_position: 2
 
 # Working with Attachments
 
+<img src="/img/mascot/attachments.png" alt="postal-mime mascot with attachments" className="mascot-header" />
+
 This guide covers how to extract, process, and work with email attachments using postal-mime.
 
 ## Understanding Attachments

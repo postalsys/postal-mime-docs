@@ -4,6 +4,8 @@ sidebar_position: 2
 
 # addressParser()
 
+<img src="/img/mascot/magnifier.png" alt="postal-mime mascot searching" className="mascot-header" />
+
 Utility function for parsing email address headers into structured objects.
 
 ## Import

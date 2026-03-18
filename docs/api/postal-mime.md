@@ -4,6 +4,8 @@ sidebar_position: 1
 
 # PostalMime
 
+<img src="/img/mascot/structure.png" alt="postal-mime mascot with structure" className="mascot-header" />
+
 The main class for parsing RFC822 email messages.
 
 ## Import

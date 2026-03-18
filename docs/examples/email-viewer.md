@@ -4,6 +4,8 @@ sidebar_position: 3
 
 # Email Viewer
 
+<img src="/img/mascot/thinking.png" alt="postal-mime mascot thinking" className="mascot-header" />
+
 Build a complete email viewer application using postal-mime.
 
 ## Simple Email Viewer

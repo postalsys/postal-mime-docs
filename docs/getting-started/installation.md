@@ -4,6 +4,8 @@ sidebar_position: 1
 
 # Installation
 
+<img src="/img/mascot/mailpile.png" alt="postal-mime mascot with envelopes" className="mascot-header" />
+
 postal-mime can be installed via npm and works in various JavaScript environments.
 
 ## npm Installation

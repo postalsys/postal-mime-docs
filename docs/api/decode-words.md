@@ -4,6 +4,8 @@ sidebar_position: 3
 
 # decodeWords()
 
+<img src="/img/mascot/funnel.png" alt="postal-mime mascot decoding" className="mascot-header" />
+
 Utility function for decoding MIME encoded-words in email headers.
 
 ## Import

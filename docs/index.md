@@ -5,6 +5,8 @@ slug: /
 
 # postal-mime
 
+<img src="/img/mascot/logo.png" alt="postal-mime mascot" className="mascot-header" />
+
 **postal-mime** is an email parsing library for Node.js, browsers (including Web Workers), and serverless environments (like Cloudflare Email Workers). It takes in a raw email message (RFC822 format) and outputs a structured object containing headers, recipients, attachments, and more.
 
 ## Features

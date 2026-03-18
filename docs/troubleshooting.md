@@ -4,6 +4,8 @@ sidebar_position: 6
 
 # Troubleshooting
 
+<img src="/img/mascot/confused.png" alt="postal-mime mascot confused" className="mascot-header" />
+
 Common issues and their solutions when using postal-mime.
 
 ## Parsing Errors

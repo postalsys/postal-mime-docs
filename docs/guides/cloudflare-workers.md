@@ -4,6 +4,8 @@ sidebar_position: 3
 
 # Cloudflare Workers
 
+<img src="/img/mascot/server.png" alt="postal-mime mascot at server" className="mascot-header" />
+
 postal-mime is ideal for parsing emails in Cloudflare Email Workers. This guide covers integration patterns and best practices.
 
 ## Email Workers Setup
