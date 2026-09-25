@@ -74,6 +74,18 @@ const email = await PostalMime.parse(rawEmail, {
 
 2. Check if the email is malformed or malicious.
 
+### "maxNestingDepth must be a non-negative integer"
+
+**Cause**: One of the limit options (`maxNestingDepth`, `maxHeadersSize` or `maxRfc822NestingDepth`) was given a value that is not a non-negative integer, such as a numeric string, `NaN` or `Infinity`. The parser rejects these with a `TypeError` instead of silently switching the limit off.
+
+**Solution**: Pass a number. `0` is accepted and means a literal zero, not "use the default":
+
+```javascript
+const email = await PostalMime.parse(rawEmail, {
+    maxNestingDepth: Number(process.env.MAX_DEPTH) || 256
+});
+```
+
 ## Content Issues
 
 ### HTML content is empty but email has HTML
@@ -105,11 +117,11 @@ const contentType = email.headers.find(h => h.key === 'content-type');
 console.log('Content-Type:', contentType?.value);
 ```
 
-If the charset is missing or wrong, the content may not decode correctly. postal-mime attempts to detect encoding but can't always succeed.
+postal-mime does not guess the encoding: a part without a charset is decoded as UTF-8, and a charset label that cannot be resolved falls back to windows-1252. If the message declares the wrong charset, the text comes out wrong too.
 
 ### Missing subject or other headers
 
-**Check**: The header might have a different casing or format:
+**Check**: List every header the parser saw. Where a header appears more than once, a property such as `subject` reflects the first occurrence:
 
 ```javascript
 // Check all headers
@@ -117,10 +129,8 @@ email.headers.forEach(h => {
     console.log(`${h.key}: ${h.value}`);
 });
 
-// Find by case-insensitive search
-const subject = email.headers.find(
-    h => h.key.toLowerCase() === 'subject'
-);
+// Keys are always lowercase, so no case handling is needed
+const subject = email.headers.find(h => h.key === 'subject');
 ```
 
 ## Attachment Issues
@@ -173,6 +183,18 @@ await writeFile('file.pdf', buffer);
 // For downloading in browser
 const blob = new Blob([att.content], { type: att.mimeType });
 const url = URL.createObjectURL(blob);
+```
+
+### A message/rfc822 attachment has `rfc822DepthExceeded: true`
+
+**Cause**: The nested message sits deeper than `maxRfc822NestingDepth` (default: 10) allows, so the parser returned it as an attachment instead of parsing it inline. Nothing inside it is reflected in `text`, `html` or `attachments`.
+
+**Solution**: Parse the attachment content yourself if you need to see inside, and bound how many levels you follow:
+
+```javascript
+if (attachment.rfc822DepthExceeded) {
+    const nested = await PostalMime.parse(attachment.content);
+}
 ```
 
 ### Filename is null
@@ -249,9 +271,9 @@ import PostalMime from 'postal-mime';
 const PostalMime = require('postal-mime');
 ```
 
-**For browser direct import**:
+**For browser direct import** (postal-mime 4.0 and later; 3.x releases ship the module at `src/postal-mime.js` instead):
 ```javascript
-import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
+import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
 ```
 
 ### TypeScript errors
@@ -271,9 +293,9 @@ const email: Email = await PostalMime.parse(rawEmail, options);
 
 ### Blob not defined (Node.js)
 
-**Cause**: Using `Blob` type in Node.js < 18.
+**Cause**: Node.js older than 18 has no global `Blob`, and postal-mime needs Node.js 18 or newer.
 
-**Solution**: Use Buffer or ArrayBuffer instead:
+**Solution**: Upgrade Node.js. The parser checks every input against `Blob`, so passing a Buffer does not avoid the error on older versions:
 
 ```javascript
 import { readFile } from 'fs/promises';
@@ -290,15 +312,9 @@ const email = await PostalMime.parse(buffer);
 
 1. Use Web Workers for browser environments (see [Web Worker example](./examples/web-worker))
 
-2. Stream processing is coming - for now, the entire email must be in memory
+2. The entire message is held in memory while it is parsed, including when a `ReadableStream` is passed in, so bound the size of untrusted input before parsing it
 
-3. Reduce attachment processing overhead:
-```javascript
-// Use base64 to avoid ArrayBuffer copying
-const email = await PostalMime.parse(rawEmail, {
-    attachmentEncoding: 'base64'
-});
-```
+3. Keep the default `attachmentEncoding` of `'arraybuffer'` unless you need strings: the `base64` and `utf8` encodings do extra work after parsing
 
 ### Memory usage is high
 

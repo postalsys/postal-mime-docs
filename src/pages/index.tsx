@@ -43,7 +43,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Email Parser for JavaScript"
-      description="Email parsing library for browser environments, Web Workers, and serverless functions. Parse RFC822 emails into structured JavaScript objects.">
+      description="Email parsing library for Node.js, browsers, Web Workers, and serverless functions. Parse RFC822 emails into structured JavaScript objects.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

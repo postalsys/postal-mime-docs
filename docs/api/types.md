@@ -6,7 +6,7 @@ sidebar_position: 4
 
 <img src="/img/mascot/checklist.png" alt="postal-mime mascot with checklist" className="mascot-header" />
 
-TypeScript type definitions for postal-mime.
+TypeScript type definitions for postal-mime. The library is written in TypeScript, and the declarations below are generated from the source during the build.
 
 ## Importing Types
 
@@ -16,41 +16,44 @@ import type {
     Email,
     Address,
     Mailbox,
+    AddressGroup,
     Header,
     HeaderLine,
     Attachment,
+    AttachmentEncoding,
     PostalMimeOptions,
     AddressParserOptions,
     RawEmail
 } from 'postal-mime';
 ```
 
+Every optional property is declared as `T | undefined`, so the types also work in projects that compile with `exactOptionalPropertyTypes`.
+
 ## RawEmail
 
 Input types accepted by `PostalMime.parse()`:
 
 ```typescript
-type RawEmail =
-    | string
-    | ArrayBuffer
-    | Uint8Array
-    | Blob
-    | Buffer
-    | ReadableStream;
+type RawEmail = string | ArrayBuffer | ArrayBufferView | Blob | ReadableStream<Uint8Array>;
 ```
+
+A Node.js `Buffer` is a `Uint8Array`, so it is covered by `ArrayBufferView` together with every other typed array and `DataView`. A `File` is a `Blob`. A stream is read to completion before parsing starts.
 
 ## PostalMimeOptions
 
 Configuration options for parsing:
 
 ```typescript
-type PostalMimeOptions = {
-    rfc822Attachments?: boolean;
-    forceRfc822Attachments?: boolean;
-    attachmentEncoding?: 'base64' | 'utf8' | 'arraybuffer';
-    maxNestingDepth?: number;
-    maxHeadersSize?: number;
-};
+type AttachmentEncoding = 'base64' | 'utf8' | 'arraybuffer';
+
+interface PostalMimeOptions {
+    rfc822Attachments?: boolean | undefined;
+    forceRfc822Attachments?: boolean | undefined;
+    attachmentEncoding?: AttachmentEncoding | undefined;
+    maxNestingDepth?: number | undefined;
+    maxHeadersSize?: number | undefined;
+    maxRfc822NestingDepth?: number | undefined;
+}
 ```
 
 ### Properties
@@ -59,20 +62,23 @@ type PostalMimeOptions = {
 |----------|------|---------|-------------|
 | `rfc822Attachments` | `boolean` | `false` | Treat `message/rfc822` without Content-Disposition as attachments |
 | `forceRfc822Attachments` | `boolean` | `false` | Treat all `message/rfc822` as attachments |
-| `attachmentEncoding` | `string` | `'arraybuffer'` | Attachment content encoding |
+| `attachmentEncoding` | `AttachmentEncoding` | `'arraybuffer'` | Attachment content encoding |
 | `maxNestingDepth` | `number` | `256` | Maximum MIME nesting depth |
-| `maxHeadersSize` | `number` | `2097152` | Maximum header size (bytes) |
+| `maxHeadersSize` | `number` | `2097152` | Maximum total header size (bytes) |
+| `maxRfc822NestingDepth` | `number` | `10` | Maximum depth of inline `message/rfc822` parsing |
+
+See [Configuration](../getting-started/configuration) for the details of each option.
 
 ## Header
 
 Individual email header:
 
 ```typescript
-type Header = {
+interface Header {
     key: string;         // Lowercase header name
-    originalKey: string; // Original header name case
-    value: string;       // Header value
-};
+    originalKey: string; // Original header name, preserving case
+    value: string;       // Header value, unfolded but not decoded
+}
 ```
 
 ### Example
@@ -88,16 +94,13 @@ const contentType = email.headers.find(
 Raw header line preserving original formatting:
 
 ```typescript
-type HeaderLine = {
+interface HeaderLine {
     key: string;   // Lowercase header name
-    line: string;  // Complete raw header line (key + value, folded lines merged)
-};
+    line: string;  // Complete raw header line (key + value, folded lines joined with newlines)
+}
 ```
 
-Unlike `Header.value`, the `line` property preserves the original header formatting before normalization, including:
-- Encoded words (MIME encoded-word syntax)
-- Original whitespace
-- Folded lines (merged with newlines preserved)
+`Header.value` is unfolded: the line break of a folded header is removed and the folding whitespace is kept. `HeaderLine.line` keeps the header name and the original line breaks of a folded header instead. Neither decodes encoded words.
 
 This is useful for:
 - DKIM signature verification
@@ -109,7 +112,7 @@ This is useful for:
 ```typescript
 const email = await PostalMime.parse(rawEmail);
 
-// headers[].value has folding whitespace collapsed but encoded words are NOT decoded
+// headers[].value is unfolded but encoded words are NOT decoded
 const subjectHeader = email.headers.find(h => h.key === 'subject');
 console.log(subjectHeader.value); // "=?UTF-8?B?SGVsbG8=?= World" (encoded words preserved)
 
@@ -130,11 +133,7 @@ console.log(subjectLine.line); // "Subject: =?UTF-8?B?SGVsbG8=?= World"
 Union type for email addresses (can be individual or group):
 
 ```typescript
-type Address = Mailbox | {
-    name: string;
-    address?: undefined;
-    group: Mailbox[];
-};
+type Address = Mailbox | AddressGroup;
 ```
 
 ## Mailbox
@@ -142,18 +141,30 @@ type Address = Mailbox | {
 Individual email address:
 
 ```typescript
-type Mailbox = {
+interface Mailbox {
     name: string;        // Display name (empty string if none)
     address: string;     // Email address
     group?: undefined;   // Explicitly undefined (for type narrowing)
-};
+}
+```
+
+## AddressGroup
+
+An RFC 5322 address group such as `Team: a@example.com, b@example.com;`:
+
+```typescript
+interface AddressGroup {
+    name: string;         // Group name
+    address?: undefined;  // Explicitly undefined (for type narrowing)
+    group: Mailbox[];     // Members of the group, never nested
+}
 ```
 
 ### Type Guard Example
 
 ```typescript
 function isMailbox(addr: Address): addr is Mailbox {
-    return !('group' in addr) || addr.group === undefined;
+    return addr.group === undefined;
 }
 
 // Usage
@@ -167,68 +178,70 @@ if (email.from && isMailbox(email.from)) {
 Email attachment:
 
 ```typescript
-type Attachment = {
+interface Attachment {
     filename: string | null;
     mimeType: string;
     disposition: 'attachment' | 'inline' | null;
-    related?: boolean;
-    description?: string;
-    contentId?: string;
-    method?: string;
+    related?: boolean | undefined;
+    description?: string | undefined;
+    contentId?: string | undefined;
+    method?: string | undefined;
+    rfc822DepthExceeded?: boolean | undefined;
     content: ArrayBuffer | Uint8Array | string;
-    encoding?: 'base64' | 'utf8';
-};
+    encoding?: 'base64' | 'utf8' | undefined;
+}
 ```
 
 ### Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `filename` | `string \| null` | Original filename |
-| `mimeType` | `string` | MIME type |
-| `disposition` | `string \| null` | `'attachment'`, `'inline'`, or `null` |
-| `related` | `boolean` | `true` if inline image for HTML |
-| `description` | `string` | Content-Description header |
-| `contentId` | `string` | Content-ID (for inline references) |
-| `method` | `string` | Calendar method (for text/calendar) |
-| `content` | `ArrayBuffer \| Uint8Array \| string` | File content |
-| `encoding` | `string` | `'base64'` or `'utf8'` if converted |
+| `filename` | `string \| null` | Decoded filename, or `null` if the part did not name one |
+| `mimeType` | `string` | Lowercase MIME type |
+| `disposition` | `'attachment' \| 'inline' \| null` | Content-Disposition value, or `null` if there was none |
+| `related` | `boolean` | `true` for a part with a Content-ID inside a `multipart/related` tree, such as an inline image |
+| `description` | `string` | Decoded Content-Description header |
+| `contentId` | `string` | Content-ID header, angle brackets included |
+| `method` | `string` | Uppercased calendar method (for `text/calendar` and `application/ics`) |
+| `rfc822DepthExceeded` | `boolean` | `true` for a `message/rfc822` part that hit `maxRfc822NestingDepth` and was not parsed |
+| `content` | `ArrayBuffer \| Uint8Array \| string` | File content: `ArrayBuffer` by default, `Uint8Array` for calendar parts, a string with the `base64` and `utf8` encodings |
+| `encoding` | `'base64' \| 'utf8'` | Set when `content` is a string |
 
 ## Email
 
 Complete parsed email:
 
 ```typescript
-type Email = {
+interface Email {
     headers: Header[];
     headerLines: HeaderLine[];
-    from?: Address;
-    sender?: Address;
-    replyTo?: Address[];
-    deliveredTo?: string;
-    returnPath?: string;
-    to?: Address[];
-    cc?: Address[];
-    bcc?: Address[];
-    subject?: string;
-    messageId?: string;
-    inReplyTo?: string;
-    references?: string;
-    date?: string;
-    html?: string;
-    text?: string;
+    from?: Address | undefined;
+    sender?: Address | undefined;
+    replyTo?: Address[] | undefined;
+    deliveredTo?: string | undefined;
+    returnPath?: string | undefined;
+    to?: Address[] | undefined;
+    cc?: Address[] | undefined;
+    bcc?: Address[] | undefined;
+    subject?: string | undefined;
+    messageId?: string | undefined;
+    inReplyTo?: string | undefined;
+    references?: string | undefined;
+    date?: string | undefined;
+    html?: string | undefined;
+    text?: string | undefined;
     attachments: Attachment[];
-};
+}
 ```
 
 ### Property Details
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `headers` | `Header[]` | All email headers (folding whitespace collapsed, values not decoded) |
-| `headerLines` | `HeaderLine[]` | Raw header lines (original formatting) |
-| `from` | `Address` | From address |
-| `sender` | `Address` | Sender address |
+| `headers` | `Header[]` | Every header in message order, duplicates included (values unfolded, not decoded) |
+| `headerLines` | `HeaderLine[]` | Raw header lines, in the same order as `headers` |
+| `from` | `Address` | From address (first occurrence) |
+| `sender` | `Address` | Sender address (first occurrence) |
 | `replyTo` | `Address[]` | Reply-To addresses |
 | `deliveredTo` | `string` | Delivered-To address |
 | `returnPath` | `string` | Return-Path address |
@@ -239,7 +252,7 @@ type Email = {
 | `messageId` | `string` | Message-ID |
 | `inReplyTo` | `string` | In-Reply-To |
 | `references` | `string` | References |
-| `date` | `string` | Date (ISO 8601) |
+| `date` | `string` | Date (ISO 8601, or the raw header value if it does not parse as a date) |
 | `html` | `string` | HTML content |
 | `text` | `string` | Plain text content |
 | `attachments` | `Attachment[]` | Attachments |
@@ -249,9 +262,9 @@ type Email = {
 Options for `addressParser()`:
 
 ```typescript
-type AddressParserOptions = {
-    flatten?: boolean;
-};
+interface AddressParserOptions {
+    flatten?: boolean | undefined;
+}
 ```
 
 ## Complete Example
@@ -268,7 +281,7 @@ import type {
 
 // Type guard for mailbox
 function isMailbox(addr: Address): addr is Mailbox {
-    return !('group' in addr) || addr.group === undefined;
+    return addr.group === undefined;
 }
 
 // Parse with options
@@ -344,7 +357,7 @@ export default {
 
 ## Declaration File Location
 
-Types are defined in `postal-mime.d.ts` at the package root. They are automatically loaded when importing postal-mime in TypeScript projects.
+The declarations are generated from the TypeScript source and shipped next to each build: `dist/esm/postal-mime.d.ts` for the ES module build and `dist/cjs/postal-mime.d.ts` for the CommonJS build. TypeScript picks the right one through the package `exports` map, so nothing needs to be configured.
 
 ## See Also
 

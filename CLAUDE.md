@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with the postal-mime doc
 
 ## Project Overview
 
-This is a Docusaurus 3.x documentation site for postal-mime, an email parsing library for browser environments, Web Workers, and serverless functions.
+This is a Docusaurus 3.x documentation site for postal-mime, an email parsing library for Node.js, browsers, Web Workers, and serverless functions. The library itself lives in the postal-mime repository next to this one; its README and CHANGELOG are the source of truth for behavior, and these docs must be kept in sync with them.
 
 ## Development Commands
 
@@ -50,7 +50,7 @@ Dark mode is enabled and respects user preferences.
 
 ## Key Notes
 
-- postal-mime is a zero-dependency library
-- Works in browsers, Web Workers, Node.js, and Cloudflare Workers
-- Full TypeScript support with comprehensive type definitions
-- Security limits: maxNestingDepth (256) and maxHeadersSize (2MB)
+- postal-mime is a zero-dependency library written in TypeScript, published as ES modules (`dist/esm`) and CommonJS (`dist/cjs`) with generated type declarations
+- Works in browsers, Web Workers, Node.js 18+, Deno, Bun and Cloudflare Workers
+- Security limits: maxNestingDepth (256), maxHeadersSize (2MB, counted across every part) and maxRfc822NestingDepth (10; deeper nested messages become attachments flagged `rfc822DepthExceeded`)
+- Pushes to `master` deploy the site to GitHub Pages at https://postal-mime.postalsys.com through `.github/workflows/deploy.yml`

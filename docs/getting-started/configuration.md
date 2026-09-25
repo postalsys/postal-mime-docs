@@ -12,11 +12,12 @@ postal-mime provides several options to customize how emails are parsed.
 
 ```javascript
 const options = {
-    rfc822Attachments: false,      // Treat message/rfc822 as attachments
-    forceRfc822Attachments: false, // Force ALL message/rfc822 as attachments
-    attachmentEncoding: 'arraybuffer', // How to encode attachment content
-    maxNestingDepth: 256,          // Maximum MIME nesting depth
-    maxHeadersSize: 2097152        // Maximum header size (2MB)
+    rfc822Attachments: false,          // Treat message/rfc822 parts without a disposition as attachments
+    forceRfc822Attachments: false,     // Treat ALL message/rfc822 parts as attachments
+    attachmentEncoding: 'arraybuffer', // How to return attachment content
+    maxNestingDepth: 256,              // Maximum MIME nesting depth
+    maxHeadersSize: 2097152,           // Maximum total header size (2MB)
+    maxRfc822NestingDepth: 10          // Maximum depth of inline message/rfc822 parsing
 };
 
 const email = await PostalMime.parse(rawEmail, options);
@@ -77,11 +78,9 @@ const originalMessage = email.attachments.find(
 );
 
 if (originalMessage) {
-    // Parse the original bounced message
-    const decoder = new TextDecoder();
-    const original = await PostalMime.parse(
-        decoder.decode(originalMessage.content)
-    );
+    // Parse the original bounced message from its raw bytes, so that a
+    // message in a non UTF-8 charset stays intact
+    const original = await PostalMime.parse(originalMessage.content);
     console.log('Bounced subject:', original.subject);
 }
 ```
@@ -116,6 +115,10 @@ console.log(typeof email3.attachments[0].content); // "string"
 console.log(email3.attachments[0].encoding);       // "utf8"
 ```
 
+:::note
+Calendar parts (`text/calendar` and `application/ics`) are normalized to UTF-8 text with LF line endings and returned as a `Uint8Array` under the default encoding. See [Calendar Attachments](../guides/working-with-attachments#calendar-attachments).
+:::
+
 ### maxNestingDepth
 
 Maximum allowed MIME part nesting depth. Prevents stack overflow attacks from maliciously crafted emails with deeply nested structures.
@@ -149,7 +152,7 @@ try {
 
 ### maxHeadersSize
 
-Maximum allowed total header size in bytes. Prevents memory exhaustion from emails with extremely large headers.
+Maximum allowed total header size in bytes. Prevents memory exhaustion from emails with extremely large headers. The limit counts the header bytes of every MIME part of the message together, so a multipart message cannot spend the budget again for each part it declares.
 
 ```javascript
 // Default is 2MB (2097152 bytes)
@@ -173,6 +176,44 @@ try {
 }
 ```
 
+### maxRfc822NestingDepth
+
+Maximum depth of inline `message/rfc822` parsing. Each inline nested message is parsed by a new parser instance that holds the whole nested message, so without a limit a small crafted email could nest messages until memory runs out. A message nested deeper than the limit is returned as a regular attachment with `rfc822DepthExceeded: true` instead of being parsed, and nothing inside it is reflected in `text`, `html` or `attachments`.
+
+```javascript
+const email = await PostalMime.parse(rawEmail, {
+    maxRfc822NestingDepth: 3
+});
+
+for (const attachment of email.attachments) {
+    if (attachment.rfc822DepthExceeded) {
+        // Parse it yourself if you need to see inside, and bound how often you do this
+        const nested = await PostalMime.parse(attachment.content);
+    }
+}
+```
+
+**Default:** `10`
+
+Use `0` to disable inline parsing entirely, so that every `message/rfc822` part becomes an attachment.
+
+:::warning
+If you scan messages for malicious content, do not treat `attachments` as complete without checking `rfc822DepthExceeded`. A sender can push a payload past the limit to keep it out of `text`, `html` and `attachments`. See the [Security guide](../guides/security#nested-message-recursion-limit).
+:::
+
+## Limit Validation
+
+The three limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with a `TypeError` rather than silently disabling the limit, and `0` means a literal zero, not "use the default". This matters when options are forwarded from a request or a configuration file:
+
+```javascript
+try {
+    await PostalMime.parse(rawEmail, { maxNestingDepth: '50' });
+} catch (error) {
+    console.error(error instanceof TypeError, error.message);
+    // true "maxNestingDepth must be a non-negative integer"
+}
+```
+
 ## TypeScript Configuration
 
 ```typescript
@@ -182,7 +223,8 @@ import type { PostalMimeOptions, Email } from 'postal-mime';
 const options: PostalMimeOptions = {
     attachmentEncoding: 'base64',
     maxNestingDepth: 100,
-    maxHeadersSize: 1048576
+    maxHeadersSize: 1048576,
+    maxRfc822NestingDepth: 3
 };
 
 const email: Email = await PostalMime.parse(rawEmail, options);
@@ -194,13 +236,16 @@ When parsing untrusted email input:
 
 ```javascript
 const secureOptions = {
-    maxNestingDepth: 50,        // Reduce nesting limit
-    maxHeadersSize: 524288,     // 512KB header limit
-    forceRfc822Attachments: true // Don't auto-parse nested emails
+    maxNestingDepth: 50,          // Reduce nesting limit
+    maxHeadersSize: 524288,       // 512KB header limit
+    maxRfc822NestingDepth: 3,     // Fewer levels of nested messages
+    forceRfc822Attachments: true  // Don't auto-parse nested emails
 };
 
 const email = await PostalMime.parse(untrustedEmail, secureOptions);
 ```
+
+These options limit nesting, not breadth. A single multipart part with a very large number of children is still expensive to parse, so bound the size of untrusted input before it reaches the parser.
 
 ## Default Values Summary
 
@@ -211,3 +256,4 @@ const email = await PostalMime.parse(untrustedEmail, secureOptions);
 | `attachmentEncoding` | `'arraybuffer'` |
 | `maxNestingDepth` | `256` |
 | `maxHeadersSize` | `2097152` (2MB) |
+| `maxRfc822NestingDepth` | `10` |

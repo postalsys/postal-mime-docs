@@ -22,9 +22,10 @@ Attachments in postal-mime are returned as an array of objects with the followin
     related?: boolean,             // true if inline image (optional)
     contentId?: string,            // Content-ID for inline images (optional)
     description?: string,          // Content-Description header (optional)
-    content: ArrayBuffer | string, // File content
+    content: ArrayBuffer | Uint8Array | string, // File content
     encoding?: string,             // "base64" or "utf8" if converted (optional)
-    method?: string                // Calendar method for ICS files (optional)
+    method?: string,               // Calendar method for ICS files (optional)
+    rfc822DepthExceeded?: boolean  // true for a nested message that was not parsed (optional)
 }
 ```
 
@@ -69,7 +70,7 @@ const inlineAttachments = email.attachments.filter(
 
 ### Related Attachments
 
-Images referenced in HTML content are marked with `related: true`:
+Parts that sit inside a `multipart/related` tree and carry a Content-ID, which is how images referenced from HTML are embedded, are marked with `related: true`:
 
 ```javascript
 const relatedImages = email.attachments.filter(att => att.related);
@@ -304,6 +305,25 @@ calendarEvents.forEach(event => {
     console.log(`Action: ${event.method}`);
     // event.method: "REQUEST", "REPLY", "CANCEL", "PUBLISH"
 });
+```
+
+## Nested Messages
+
+A `message/rfc822` part is parsed inline by default, so its text, HTML and attachments are merged into the parent. It shows up as an attachment instead when it has `Content-Disposition: attachment`, when the `rfc822Attachments` or `forceRfc822Attachments` option is set, when the message is a delivery report, or when it is nested deeper than `maxRfc822NestingDepth` allows. In the last case the attachment carries `rfc822DepthExceeded: true`, and nothing inside it is reflected in the parent.
+
+```javascript
+for (const attachment of email.attachments) {
+    if (attachment.mimeType === 'message/rfc822') {
+        // pass the raw bytes, not a decoded string, so the charset survives
+        const nested = await PostalMime.parse(attachment.content);
+        console.log('Nested subject:', nested.subject);
+
+        if (attachment.rfc822DepthExceeded) {
+            // the parser skipped this one because it was nested too deeply,
+            // so bound how many levels you follow yourself
+        }
+    }
+}
 ```
 
 ## Complete Attachment Handler

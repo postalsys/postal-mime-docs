@@ -37,7 +37,8 @@ The parsed email object contains all the information from the message:
 const email = await PostalMime.parse(rawEmail);
 
 // Headers
-console.log(email.headers);     // Array of all headers
+console.log(email.headers);     // Array of all headers, in message order
+console.log(email.headerLines); // Raw header lines, in the same order
 
 // Sender information
 console.log(email.from);        // From address
@@ -48,6 +49,8 @@ console.log(email.replyTo);     // Reply-To addresses
 console.log(email.to);          // To addresses (array)
 console.log(email.cc);          // CC addresses (array)
 console.log(email.bcc);         // BCC addresses (array)
+console.log(email.deliveredTo); // Delivered-To address (string)
+console.log(email.returnPath);  // Return-Path address (string)
 
 // Message identifiers
 console.log(email.messageId);   // Message-ID header
@@ -96,7 +99,7 @@ for (const attachment of email.attachments) {
     console.log(attachment.filename);    // "document.pdf"
     console.log(attachment.mimeType);    // "application/pdf"
     console.log(attachment.disposition); // "attachment" or "inline"
-    console.log(attachment.content);     // ArrayBuffer with file content
+    console.log(attachment.content);     // ArrayBuffer with file content (Uint8Array for calendar parts)
 }
 ```
 
@@ -122,6 +125,9 @@ const email5 = await PostalMime.parse(buffer);
 
 // ReadableStream
 const email6 = await PostalMime.parse(readableStream);
+
+// Any other ArrayBufferView, such as a DataView
+const email7 = await PostalMime.parse(dataView);
 ```
 
 ## TypeScript Example

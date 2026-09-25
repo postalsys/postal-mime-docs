@@ -13,10 +13,10 @@ slug: /
 
 - **Zero Dependencies** - No external dependencies, keeping your bundle size minimal
 - **Universal Compatibility** - Works in browsers, Web Workers, Node.js, and serverless environments like Cloudflare Workers
-- **TypeScript Support** - Fully typed with comprehensive type definitions
+- **Written in TypeScript** - Type declarations ship with the package for both ES modules and CommonJS
 - **RFC Compliant** - Follows RFC 2822/5322 email standards
 - **Complex MIME Handling** - Supports multipart messages, nested parts, and attachments
-- **Security Built-in** - Protection against deeply nested messages and oversized headers
+- **Security Built-in** - Limits on MIME nesting depth, total header size and nested message recursion
 
 ## Quick Example
 
@@ -40,8 +40,8 @@ npm install postal-mime
 
 ## Requirements
 
-- Modern browser with ES6 support, or
-- Node.js 14.0+, or
+- Any modern browser, or
+- Node.js 18 or newer (the test suite runs on Node.js 20, 22, 24 and 26), or
 - Cloudflare Workers / Deno / Bun
 
 ## How It Works

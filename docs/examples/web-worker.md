@@ -19,7 +19,7 @@ Use postal-mime in Web Workers for background email processing without blocking 
 ### Worker File (email-worker.js)
 
 ```javascript
-import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
+import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
 
 self.onmessage = async function(event) {
     const { id, rawEmail, options } = event.data;
@@ -53,6 +53,10 @@ self.onmessage = async function(event) {
     }
 };
 ```
+
+:::note
+The worker above loads the ES module build straight from `node_modules`, which works without any build step. When the worker is bundled (see [Using with Bundlers](#using-with-bundlers)), import from `'postal-mime'` instead.
+:::
 
 ### Main Thread Usage
 
@@ -258,7 +262,7 @@ For large emails, report parsing progress:
 
 ```javascript
 // email-worker.js
-import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
+import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
 
 self.onmessage = async function(event) {
     const { id, rawEmail, options } = event.data;
@@ -351,7 +355,7 @@ const email = await parseWithProgress(rawEmail, (stage, percent) => {
 ### email-worker.ts
 
 ```typescript
-import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
+import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
 import type { Email, PostalMimeOptions } from 'postal-mime';
 
 interface WorkerRequest {
@@ -396,22 +400,13 @@ self.onmessage = async function(event: MessageEvent<WorkerRequest>) {
 
 ### Webpack
 
-```javascript
-// webpack.config.js
-module.exports = {
-    module: {
-        rules: [
-            {
-                test: /\.worker\.js$/,
-                use: { loader: 'worker-loader' }
-            }
-        ]
-    }
-};
+Webpack 5 bundles a worker without any loader when it is created from a `new URL()` relative to the current module:
 
-// In your code
-import EmailWorker from './email.worker.js';
-const worker = new EmailWorker();
+```javascript
+const worker = new Worker(
+    new URL('./email-worker.js', import.meta.url),
+    { type: 'module' }
+);
 ```
 
 ### Vite

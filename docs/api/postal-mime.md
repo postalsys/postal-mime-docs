@@ -39,10 +39,9 @@ The `email` parameter accepts multiple input formats:
 |------|-------------|
 | `string` | Raw email as a string |
 | `ArrayBuffer` | Raw email as ArrayBuffer |
-| `Uint8Array` | Raw email as Uint8Array |
-| `Blob` | Blob object (browser only) |
-| `Buffer` | Node.js Buffer |
-| `ReadableStream` | Web ReadableStream |
+| `ArrayBufferView` | A `Uint8Array`, a Node.js `Buffer`, a `DataView` or any other typed array |
+| `Blob` | Blob or File object |
+| `ReadableStream` | Web ReadableStream of bytes, read to completion before parsing |
 
 #### Options
 
@@ -52,7 +51,10 @@ The `email` parameter accepts multiple input formats:
 | `forceRfc822Attachments` | `boolean` | `false` | Treat all `message/rfc822` parts as attachments |
 | `attachmentEncoding` | `string` | `'arraybuffer'` | How to encode attachment content: `'arraybuffer'`, `'base64'`, or `'utf8'` |
 | `maxNestingDepth` | `number` | `256` | Maximum MIME part nesting depth |
-| `maxHeadersSize` | `number` | `2097152` | Maximum header size in bytes (2MB) |
+| `maxHeadersSize` | `number` | `2097152` | Maximum total header size in bytes (2MB), counted across every part |
+| `maxRfc822NestingDepth` | `number` | `10` | Maximum depth of inline `message/rfc822` parsing; deeper messages become attachments flagged with `rfc822DepthExceeded` |
+
+The three limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with a `TypeError`, and `0` means a literal zero rather than the default.
 
 #### Returns
 
@@ -145,15 +147,15 @@ The parsed email object contains the following properties:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `headers` | `Header[]` | Array of all headers (folding whitespace collapsed, values not decoded) |
+| `headers` | `Header[]` | Every header in message order, duplicates included (values unfolded, not decoded) |
 | `headerLines` | `HeaderLine[]` | Array of raw header lines (original formatting) |
 
 ```javascript
-// Headers with folding whitespace collapsed (encoded words are NOT decoded)
+// Unfolded header values (line breaks removed, whitespace kept; encoded words are NOT decoded)
 email.headers.forEach(header => {
     console.log(header.key);         // Lowercase header name
     console.log(header.originalKey); // Original header name preserving case
-    console.log(header.value);       // Header value (not decoded — use decodeWords() if needed)
+    console.log(header.value);       // Header value (not decoded, use decodeWords() if needed)
 });
 
 // Raw header lines (preserves original formatting for DKIM, etc.)
@@ -174,6 +176,8 @@ if (dkimLine) {
 }
 ```
 :::
+
+Where a header is exposed as a single property, such as `subject`, `from` or `messageId`, the first occurrence wins. The address lists `to`, `cc`, `bcc` and `replyTo` collect every occurrence in message order.
 
 ### Addresses
 
@@ -204,7 +208,7 @@ if (dkimLine) {
 | `date` | `string \| undefined` | Date in ISO 8601 format |
 | `text` | `string \| undefined` | Plain text content |
 | `html` | `string \| undefined` | HTML content |
-| `attachments` | `Attachment[]` | Array of attachments |
+| `attachments` | `Attachment[]` | Array of attachments, see [Attachment](./types#attachment) |
 
 ## Complete Example
 
@@ -256,7 +260,9 @@ const email: Email = await PostalMime.parse(rawEmail, options);
 try {
     const email = await PostalMime.parse(rawEmail);
 } catch (error) {
-    if (error.message.includes('nesting depth')) {
+    if (error instanceof TypeError) {
+        console.error('Invalid parser option:', error.message);
+    } else if (error.message.includes('nesting depth')) {
         console.error('Email has too many nested parts');
     } else if (error.message.includes('header size')) {
         console.error('Email headers are too large');

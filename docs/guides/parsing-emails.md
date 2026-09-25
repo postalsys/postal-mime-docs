@@ -94,7 +94,7 @@ const response = await fetch('/path/to/email.eml');
 const email = await PostalMime.parse(response.body);
 ```
 
-This is particularly useful for streaming large emails without loading them entirely into memory:
+The stream is read to completion before parsing starts, so this is a convenience for stream shaped inputs rather than a way to bound memory: the whole message is held in memory while it is parsed.
 
 ```javascript
 // Fetch and parse in one step using the stream directly
@@ -130,6 +130,19 @@ X-headers and other custom headers are available:
 ```javascript
 const xMailer = email.headers.find(h => h.key === 'x-mailer');
 console.log(xMailer?.value);
+```
+
+### Duplicate and Folded Headers
+
+`headers` lists every header in message order, duplicates included. A `value` is unfolded per RFC 5322: the line break of a folded header is removed and the folding whitespace is kept, so `Subject: Hello\r\n    World` reads as `Hello    World`. Encoded words are left as they are; use [`decodeWords()`](../api/decode-words) to decode them. The original lines, folds included, are available in `headerLines`.
+
+Where a header is exposed as a single property, such as `subject`, `from` or `messageId`, the first occurrence wins. The address lists `to`, `cc`, `bcc` and `replyTo` collect every occurrence in message order.
+
+```javascript
+// Subject: first
+// Subject: second
+console.log(email.subject); // "first"
+console.log(email.headers.filter(h => h.key === 'subject').length); // 2
 ```
 
 ## Understanding Address Fields
@@ -239,7 +252,7 @@ console.log(textOnlyEmail.html); // undefined
 When a `multipart/mixed` message contains both `text/plain` and `text/html` parts, postal-mime makes both formats available. If one part of the tree only provides one format while other parts provide the other, postal-mime converts the available format to fill in the gap:
 
 ```javascript
-// multipart/alternative with both formats — both are directly available
+// multipart/alternative with both formats, both are directly available
 const email = await PostalMime.parse(multipartAlternativeEmail);
 console.log(email.text); // Plain text version
 console.log(email.html); // HTML version
@@ -270,11 +283,12 @@ const nestedEmail = email.attachments.find(
     att => att.mimeType === 'message/rfc822'
 );
 
-// Parse the nested email separately
-const decoder = new TextDecoder();
-const nestedContent = decoder.decode(nestedEmail.content);
-const nested = await PostalMime.parse(nestedContent);
+// Parse the nested email separately. Pass the raw bytes rather than a decoded
+// string, so that a nested message in a non UTF-8 charset stays intact
+const nested = await PostalMime.parse(nestedEmail.content);
 ```
+
+Inline parsing is bounded by the `maxRfc822NestingDepth` option (10 levels by default). A message nested deeper than that is returned as an attachment with `rfc822DepthExceeded: true`, and its content is not reflected in `text`, `html` or `attachments`. See [Configuration](../getting-started/configuration#maxrfc822nestingdepth).
 
 ## Character Encoding
 
@@ -285,6 +299,8 @@ postal-mime automatically handles various character encodings:
 const email = await PostalMime.parse(emailWithJapaneseContent);
 console.log(email.subject); // Correctly decoded Unicode text
 ```
+
+Every charset label of the WHATWG Encoding Standard is supported, plus common aliases seen in mail: `x-` and `cs` prefixes, Windows and IBM code page numbers such as `cp932` or `windows-949`, `iso-8859-8-i`, the Shift_JIS, EUC and ISO-2022-JP families and `tis-620`. A part without a charset is decoded as UTF-8, and a label that cannot be resolved falls back to windows-1252. See [decodeWords()](../api/decode-words#supported-charsets) for the full list.
 
 ### MIME Encoded Words
 
@@ -314,7 +330,9 @@ Handle parsing errors gracefully:
 try {
     const email = await PostalMime.parse(rawEmail);
 } catch (error) {
-    if (error.message.includes('nesting depth')) {
+    if (error instanceof TypeError) {
+        console.error('Invalid parser option:', error.message);
+    } else if (error.message.includes('nesting depth')) {
         console.error('Email has too many nested parts');
     } else if (error.message.includes('header size')) {
         console.error('Email headers are too large');

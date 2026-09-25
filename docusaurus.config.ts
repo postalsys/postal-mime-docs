@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'postal-mime',
-  tagline: 'Email parsing library for browser environments and serverless functions',
+  tagline: 'Email parsing library for Node.js, browsers and serverless functions',
   favicon: 'img/favicon.ico',
 
   markdown: {
@@ -29,7 +29,7 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://postalsys.github.io',
+  url: 'https://postal-mime.postalsys.com',
   baseUrl: '/',
 
   organizationName: 'postalsys',
@@ -56,7 +56,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/postalsys/postal-mime/tree/master/docs/',
+          editUrl: 'https://github.com/postalsys/postal-mime-docs/tree/master/docs/',
         },
         blog: false,
         theme: {

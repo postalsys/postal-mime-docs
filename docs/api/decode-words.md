@@ -96,7 +96,7 @@ console.log(decoded); // "HelloWorld"
 ```javascript
 const encoded = '=?ISO-8859-1?Q?caf=E9?=';
 const decoded = decodeWords(encoded);
-console.log(decoded); // "cafe" with accented e
+console.log(decoded); // "café"
 ```
 
 ## Common Use Cases
@@ -137,17 +137,16 @@ console.log(decodedName); // "John Doe"
 
 ## Supported Charsets
 
-postal-mime supports common character sets through the TextDecoder API:
+Decoding is done with the runtime's `TextDecoder`, so every label of the [WHATWG Encoding Standard](https://encoding.spec.whatwg.org/#names-and-labels) is supported: UTF-8, UTF-16LE and UTF-16BE, the ISO-8859 family, windows-1250 through windows-1258, KOI8-R and KOI8-U, macintosh, GBK and GB18030, Big5, Shift_JIS, EUC-JP, ISO-2022-JP and EUC-KR, among others.
 
-- UTF-8
-- UTF-16, UTF-16LE, UTF-16BE
-- ISO-8859-1 through ISO-8859-15
-- Windows-1250 through Windows-1258
-- KOI8-R, KOI8-U
-- GB2312, GBK, GB18030
-- Big5
-- Shift_JIS, EUC-JP, ISO-2022-JP
-- EUC-KR
+On top of those, labels that mail clients use but the standard does not list are mapped to the matching decoder:
+
+- `x-` and `cs` prefixes and stray separators, so `x-big5` or `iso_8859_2` resolve
+- Windows and IBM code page numbers: `cp932`, `windows-932`, `ms932` and `ibm932` for Shift_JIS, and the same forms of 936 (GBK), 949 (EUC-KR), 950 (Big5), 874 (windows-874), 51932 (EUC-JP) and 50220 to 50222 (ISO-2022-JP)
+- `iso-8859-8-i` and `iso-8859-8-e` as ISO-8859-8
+- `shiftjis`, `windows-31j` and `ms_kanji` as Shift_JIS; `eucjp` and `x-euc-jp` as EUC-JP; `euckr` and `uhc` as EUC-KR
+- `iso-2022-jp-1`, `iso-2022-jp-2` and `junet` as ISO-2022-JP
+- `tis-620` as windows-874
 
 ## Behavior Notes
 
@@ -164,12 +163,12 @@ console.log(decoded); // "Hello"
 
 ### Unknown Charsets
 
-If an encoded-word uses an unsupported charset, the decoder falls back to `windows-1252`:
+If an encoded-word uses a charset label that cannot be resolved to a decoder, the bytes are decoded as `windows-1252`, and a runtime that lacks even that decoder falls back to UTF-8:
 
 ```javascript
 const encoded = '=?UNKNOWN-CHARSET?B?SGVsbG8=?=';
 const decoded = decodeWords(encoded);
-// Falls back to windows-1252 decoding if charset not supported by TextDecoder
+console.log(decoded); // "Hello", decoded as windows-1252
 ```
 
 ### Malformed Encoded-Words

@@ -75,10 +75,10 @@ console.log('HTML available:', !!email.html);
 // true
 
 console.log('Text available:', !!email.text);
-// true (automatically converted from HTML)
+// false (a single part HTML message has no plain text alternative)
 
-// Render the HTML safely (always sanitize first!)
-document.getElementById('email-content').innerHTML = email.html;
+// Sanitize the HTML before rendering it, see the Security guide
+document.getElementById('email-content').innerHTML = DOMPurify.sanitize(email.html);
 ```
 
 ## Multipart Email (Text + HTML)
@@ -198,7 +198,7 @@ console.log('From name:', email.from?.name);
 // "山田太郎" (decoded from Base64)
 
 console.log('Subject:', email.subject);
-// "Cafe Menu" (decoded from Quoted-Printable)
+// "Café Menu" (decoded from Quoted-Printable)
 ```
 
 ## Reading from File (Node.js)
@@ -249,9 +249,16 @@ fileInput.addEventListener('change', async (event) => {
     console.log('Parsed email:', email.subject);
 
     // Display results
-    document.getElementById('subject').textContent = email.subject;
-    document.getElementById('from').textContent = email.from?.address;
-    document.getElementById('body').innerHTML = email.html || email.text;
+    document.getElementById('subject').textContent = email.subject || '';
+    document.getElementById('from').textContent = email.from?.address || '';
+
+    const body = document.getElementById('body');
+    if (email.html) {
+        // sanitize before rendering, see the Security guide
+        body.innerHTML = DOMPurify.sanitize(email.html);
+    } else {
+        body.textContent = email.text || '';
+    }
 });
 ```
 

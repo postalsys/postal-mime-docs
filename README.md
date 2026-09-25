@@ -1,41 +1,28 @@
-# Website
+# postal-mime documentation
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+The documentation site for [postal-mime](https://github.com/postalsys/postal-mime), published at [postal-mime.postalsys.com](https://postal-mime.postalsys.com/). Built with [Docusaurus](https://docusaurus.io/).
 
-## Installation
-
-```bash
-yarn
-```
-
-## Local Development
+## Local development
 
 ```bash
-yarn start
+npm install
+npm start
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+This starts a local development server at http://localhost:3000 and opens it in a browser. Most changes are reflected live without restarting the server.
 
 ## Build
 
 ```bash
-yarn build
+npm run build
 ```
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+This generates the static site into the `build` directory. `npm run serve` serves that build locally.
 
 ## Deployment
 
-Using SSH:
+Every push to `master` builds the site and deploys it to GitHub Pages through `.github/workflows/deploy.yml`. There is no manual deploy step.
 
-```bash
-USE_SSH=true yarn deploy
-```
+## Keeping the docs current
 
-Not using SSH:
-
-```bash
-GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+The library lives in the [postal-mime](https://github.com/postalsys/postal-mime) repository. Its README and CHANGELOG describe the current behavior and are the source of truth; update the pages under `docs/` whenever an option, a type or a documented behavior changes there. The live demo on the site parses messages with the `postal-mime` package listed in `package.json`, so bump that dependency after a release.

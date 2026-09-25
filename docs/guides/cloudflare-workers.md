@@ -252,8 +252,9 @@ export default {
     async email(message, env, ctx) {
         try {
             const email = await PostalMime.parse(message.raw, {
-                maxNestingDepth: 50,    // Stricter limit
-                maxHeadersSize: 524288  // 512KB
+                maxNestingDepth: 50,       // Stricter limit
+                maxHeadersSize: 524288,    // 512KB
+                maxRfc822NestingDepth: 3   // Deeper nested messages become attachments
             });
 
             // Process email...

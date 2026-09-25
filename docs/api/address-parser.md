@@ -59,6 +59,8 @@ Each address in the returned array has one of two forms:
 }
 ```
 
+The TypeScript type of a group is `AddressGroup`, and `Address` is the union `Mailbox | AddressGroup`. Groups are never nested: RFC 5322 does not allow it, so the members of a group found inside another group are lifted into the outer group.
+
 ## Examples
 
 ### Basic Usage
@@ -124,7 +126,7 @@ console.log(addresses);
 
 ### Flattening Groups
 
-Use the `flatten` option to get a flat array:
+Use the `flatten` option to get a flat array of mailboxes:
 
 ```javascript
 const addresses = addressParser(
@@ -171,12 +173,12 @@ console.log(addresses);
 
 When working with TypeScript, use type guards to narrow between Mailbox and Group:
 
-```javascript
+```typescript
 import { addressParser } from 'postal-mime';
 import type { Address, Mailbox } from 'postal-mime';
 
 function isMailbox(addr: Address): addr is Mailbox {
-    return !('group' in addr) || addr.group === undefined;
+    return addr.group === undefined;
 }
 
 const addresses = addressParser(headerValue);
@@ -262,7 +264,7 @@ const addresses: Address[] = addressParser(headerValue, options);
 
 // Type guard for mailbox
 function isMailbox(addr: Address): addr is Mailbox {
-    return !('group' in addr) || addr.group === undefined;
+    return addr.group === undefined;
 }
 ```
 

@@ -53,7 +53,7 @@ A basic email viewer that displays parsed email content.
     </div>
 
     <script type="module">
-        import PostalMime from './node_modules/postal-mime/src/postal-mime.js';
+        import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
 
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
@@ -152,12 +152,12 @@ A basic email viewer that displays parsed email content.
             URL.revokeObjectURL(url);
         }
 
-        // File input handler
+        // File input handler. The File object goes to the parser as is, which keeps
+        // messages in a non UTF-8 charset intact
         fileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file) {
-                const text = await file.text();
-                await displayEmail(text);
+                await displayEmail(file);
             }
         });
 
@@ -177,8 +177,7 @@ A basic email viewer that displays parsed email content.
 
             const file = e.dataTransfer.files[0];
             if (file) {
-                const text = await file.text();
-                await displayEmail(text);
+                await displayEmail(file);
             }
         });
     </script>
@@ -216,8 +215,7 @@ function EmailViewer() {
     const handleFileChange = async (event) => {
         const file = event.target.files[0];
         if (file) {
-            const text = await file.text();
-            await parseEmail(text);
+            await parseEmail(file);
         }
     };
 
@@ -225,8 +223,7 @@ function EmailViewer() {
         event.preventDefault();
         const file = event.dataTransfer.files[0];
         if (file) {
-            const text = await file.text();
-            await parseEmail(text);
+            await parseEmail(file);
         }
     };
 
@@ -446,16 +443,14 @@ async function parseEmail(rawEmail) {
 async function handleFileChange(event) {
     const file = event.target.files[0];
     if (file) {
-        const text = await file.text();
-        await parseEmail(text);
+        await parseEmail(file);
     }
 }
 
 async function handleDrop(event) {
     const file = event.dataTransfer.files[0];
     if (file) {
-        const text = await file.text();
-        await parseEmail(text);
+        await parseEmail(file);
     }
 }
 

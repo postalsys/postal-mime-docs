@@ -36,12 +36,12 @@ const FeatureList: FeatureItem[] = [
     linkText: 'View Cloudflare Guide',
   },
   {
-    title: 'TypeScript Ready',
+    title: 'Written in TypeScript',
     image: '/img/mascot/structure.png',
     description: (
       <>
-        Full TypeScript definitions included. Get complete type safety and
-        excellent IDE support out of the box.
+        Type declarations are generated from the source and ship with both the
+        ES module and the CommonJS build, for type safety and IDE support out of the box.
       </>
     ),
   },
