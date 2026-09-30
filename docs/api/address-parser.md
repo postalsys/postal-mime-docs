@@ -222,6 +222,36 @@ console.log(addresses);
 // [{ name: 'Doe, John', address: 'john@example.com' }]
 ```
 
+### Unquoted Commas in Display Names
+
+A display name with an unquoted comma splits the header into two entries. A name-only entry followed by an entry that has both a name and an address is joined back into one:
+
+```javascript
+const addresses = addressParser('Joe Foo, PhD <joe@example.com>');
+console.log(addresses);
+// [{ name: 'Joe Foo, PhD', address: 'joe@example.com' }]
+```
+
+### Quoted Local Parts
+
+A quoted local part keeps its quotes when it holds characters that are not allowed in an unquoted one, so the address always has a single `@` to split the domain off at:
+
+```javascript
+const addresses = addressParser('"user@evil.com"@good.com');
+console.log(addresses);
+// [{ name: '', address: '"user@evil.com"@good.com' }]
+```
+
+### Address Literals
+
+Domain literals, including IPv6 ones, are kept intact:
+
+```javascript
+const addresses = addressParser('user@[IPv6:2001:db8::1]');
+console.log(addresses);
+// [{ name: '', address: 'user@[IPv6:2001:db8::1]' }]
+```
+
 ## Common Use Cases
 
 ### Extract All Email Addresses
