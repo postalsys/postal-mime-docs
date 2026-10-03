@@ -29,6 +29,10 @@ Attachments in postal-mime are returned as an array of objects with the followin
 }
 ```
 
+### Attachment Content
+
+`content` holds the decoded bytes of the part. For base64 parts these are exactly the bytes that were encoded. Parts sent as `7bit`, `8bit`, `binary` or `quoted-printable` are read line by line, so their CRLF line breaks come out as LF. The line break in front of a multipart boundary belongs to the boundary (RFC 2046), so it is not part of the content: a text file sent as `quoted-printable` comes out with the same bytes it had before encoding, provided it used LF line endings.
+
 ## Basic Attachment Access
 
 ```javascript

@@ -113,5 +113,5 @@ import PostalMime from 'postal-mime';
 
 const email = await PostalMime.parse('Subject: Test\n\nHello');
 console.log(email.subject); // "Test"
-console.log(email.text);    // "Hello"
+console.log(email.text);    // "Hello\n"
 ```

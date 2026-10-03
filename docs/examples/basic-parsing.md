@@ -41,7 +41,7 @@ console.log('Date:', email.date);
 // "2024-01-15T10:30:00.000Z"
 
 console.log('Text:', email.text);
-// "Hi Bob,\n\nJust wanted to say hello!\n\nBest,\nAlice"
+// "Hi Bob,\n\nJust wanted to say hello!\n\nBest,\nAlice\n"
 ```
 
 ## HTML Email
@@ -109,10 +109,10 @@ Content-Type: text/html; charset=utf-8
 const email = await PostalMime.parse(multipartEmail);
 
 console.log('Text:', email.text);
-// "This is the plain text version."
+// "This is the plain text version.\n"
 
 console.log('HTML:', email.html);
-// "<html>\n<body>\n<p>This is the <strong>HTML</strong> version.</p>\n</body>\n</html>"
+// "<html>\n<body>\n<p>This is the <strong>HTML</strong> version.</p>\n</body>\n</html>\n"
 ```
 
 ## Email with Attachments
@@ -142,7 +142,7 @@ Pj4KZW5kb2JqCgp0cmFpbGVyCjw8L1Jvb3QgMSAwIFI+Pgolh
 const email = await PostalMime.parse(emailWithAttachment);
 
 console.log('Text:', email.text);
-// "Please find the document attached."
+// "Please find the document attached.\n"
 
 console.log('Attachments:', email.attachments.length);
 // 1

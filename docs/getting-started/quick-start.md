@@ -26,7 +26,7 @@ const email = await PostalMime.parse(rawEmail);
 
 console.log(email.from);    // { name: '', address: 'sender@example.com' }
 console.log(email.subject); // "Hello World"
-console.log(email.text);    // "This is the email body."
+console.log(email.text);    // "This is the email body.\n"
 ```
 
 ## Understanding the Email Object
