@@ -31,7 +31,7 @@ Attachments in postal-mime are returned as an array of objects with the followin
 
 ### Attachment Content
 
-`content` holds the decoded bytes of the part. For base64 parts these are exactly the bytes that were encoded. Parts sent as `7bit`, `8bit`, `binary` or `quoted-printable` are read line by line, so their CRLF line breaks come out as LF. The line break in front of a multipart boundary belongs to the boundary (RFC 2046), so it is not part of the content: a text file sent as `quoted-printable` comes out with the same bytes it had before encoding, provided it used LF line endings.
+`content` holds the decoded bytes of the part exactly as they were sent, whatever the transfer encoding: a `7bit`, `8bit` or `binary` part keeps its line endings byte for byte, a `quoted-printable` part comes out with the bytes it had before encoding, and a base64 part with the bytes that were encoded. The line break in front of a multipart boundary belongs to the boundary (RFC 2046), so it is not part of the content. Calendar parts are the exception, see [Calendar Attachments](#calendar-attachments).
 
 ## Basic Attachment Access
 

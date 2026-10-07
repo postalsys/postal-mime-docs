@@ -163,12 +163,12 @@ console.log(decoded); // "Hello"
 
 ### Unknown Charsets
 
-If an encoded-word uses a charset label that cannot be resolved to a decoder, the bytes are decoded as `windows-1252`, and a runtime that lacks even that decoder falls back to UTF-8:
+If an encoded-word uses a charset label that cannot be resolved to a decoder, the bytes are decoded as UTF-8 when they are valid UTF-8 and as `windows-1252` otherwise, so a mislabelled UTF-8 word still comes out right:
 
 ```javascript
 const encoded = '=?UNKNOWN-CHARSET?B?SGVsbG8=?=';
 const decoded = decodeWords(encoded);
-console.log(decoded); // "Hello", decoded as windows-1252
+console.log(decoded); // "Hello"
 ```
 
 ### Malformed Encoded-Words

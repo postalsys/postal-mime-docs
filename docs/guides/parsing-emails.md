@@ -184,9 +184,11 @@ addresses.forEach(addr => {
 
 ## Text and HTML Content
 
+`text` and `html` have their CRLF line endings normalized to LF, whatever transfer encoding the part was sent in.
+
 ### Format=Flowed Text
 
-postal-mime automatically handles RFC 3676 `format=flowed` text, which is used by some email clients to enable soft line wrapping. Lines ending with a trailing space are "soft" line breaks and get joined with the next line:
+postal-mime automatically handles RFC 3676 `format=flowed` text, which is used by some email clients to enable soft line wrapping. Lines ending with a trailing space are "soft" line breaks and get joined with the next line. Quoted paragraphs are unfolded the same way: the quote marks are counted and removed before the lines are joined, so `> one ` followed by `> two` reads `> one two`, and a change of quote depth or a signature separator ends the paragraph:
 
 ```javascript
 const rawEmail = `Content-Type: text/plain; charset=utf-8; format=flowed
@@ -300,7 +302,7 @@ const email = await PostalMime.parse(emailWithJapaneseContent);
 console.log(email.subject); // Correctly decoded Unicode text
 ```
 
-Every charset label of the WHATWG Encoding Standard is supported, plus common aliases seen in mail: `x-` and `cs` prefixes, Windows and IBM code page numbers such as `cp932` or `windows-949`, `iso-8859-8-i`, the Shift_JIS, EUC and ISO-2022-JP families and `tis-620`. A part without a charset is decoded as UTF-8, and a label that cannot be resolved falls back to windows-1252. See [decodeWords()](../api/decode-words#supported-charsets) for the full list.
+Every charset label of the WHATWG Encoding Standard is supported, plus common aliases seen in mail: `x-` and `cs` prefixes, Windows and IBM code page numbers such as `cp932` or `windows-949`, `iso-8859-8-i`, the Shift_JIS, EUC and ISO-2022-JP families and `tis-620`. A part without a charset, or with a label that cannot be resolved, is decoded as UTF-8 when its bytes are valid UTF-8 and as windows-1252 otherwise, and an HTML part without a charset may name its own in a `<meta>` tag. See [decodeWords()](../api/decode-words#supported-charsets) for the full list.
 
 ### MIME Encoded Words
 

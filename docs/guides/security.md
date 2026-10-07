@@ -49,6 +49,16 @@ const email = await PostalMime.parse(rawEmail, {
 });
 ```
 
+### Part Count Limit
+
+Nesting depth does not bound the size of the MIME tree. An empty part costs a few bytes of input and over a kilobyte of parser state, so a flat multipart of a million empty parts took a 7 MB message to 1.4 GB of memory. `maxPartCount` (default: 10000) caps the number of parts, counted across the whole message like the header size.
+
+```javascript
+const email = await PostalMime.parse(rawEmail, {
+    maxPartCount: 1000
+});
+```
+
 ### Nested Message Recursion Limit
 
 Inline `message/rfc822` parts are parsed by a new parser instance per level, and each instance holds the whole nested message, so a small email that nests messages hundreds of levels deep could exhaust memory. `maxRfc822NestingDepth` (default: 10) caps that recursion: a message nested deeper is returned as an attachment flagged with `rfc822DepthExceeded: true`, and nothing inside it is reflected in `text`, `html` or `attachments`.
@@ -88,7 +98,7 @@ Header names are trimmed of nothing but the SP and HTAB characters RFC 5322 allo
 
 ### Linear Time Parsing
 
-Header trimming, comment stripping, address detection, encoded word handling, `format=flowed` unfolding and the HTML to text conversion are all implemented in linear time, so a crafted header or body cannot hold a core busy with regular expression backtracking. The limits above bound nesting, not breadth: a single multipart part with a very large number of children is still work, so bound the size of untrusted input before it reaches the parser.
+Header trimming, comment stripping, address detection, encoded word handling, `format=flowed` unfolding and the HTML to text conversion are all implemented in linear time, so a crafted header or body cannot hold a core busy with regular expression backtracking. The whole message is held in memory while it is parsed, so bound the size of untrusted input before it reaches the parser as well.
 
 ## Security Best Practices
 
@@ -100,6 +110,7 @@ For processing untrusted email (user uploads, incoming mail, etc.):
 const secureOptions = {
     maxNestingDepth: 50,          // Reduce from default 256
     maxHeadersSize: 524288,       // 512KB instead of 2MB
+    maxPartCount: 1000,           // Fewer parts than the default 10000
     maxRfc822NestingDepth: 3,     // Fewer levels of nested messages
     forceRfc822Attachments: true  // Don't auto-parse nested emails
 };
@@ -117,6 +128,7 @@ async function parseEmailSafely(rawEmail) {
         return await PostalMime.parse(rawEmail, {
             maxNestingDepth: 50,
             maxHeadersSize: 524288,
+            maxPartCount: 1000,
             maxRfc822NestingDepth: 3
         });
     } catch (error) {
@@ -170,7 +182,7 @@ if (oversized.length > 0) {
 
 ### 5. Sanitize HTML Content
 
-postal-mime does not sanitize HTML content. Always sanitize before rendering:
+postal-mime does not sanitize HTML content. Always sanitize before rendering, or render it in a sandboxed iframe (`sandbox=""`) as the examples do:
 
 ```javascript
 import DOMPurify from 'dompurify';
@@ -217,6 +229,12 @@ Deeply nested MIME structures expanding exponentially.
 Extremely large headers causing memory exhaustion.
 
 **Protection:** `maxHeadersSize` option limits total header size across every part.
+
+### Part Count Bombs
+
+A flat multipart with hundreds of thousands of empty parts, cheap to send and expensive to parse.
+
+**Protection:** `maxPartCount` option limits the number of parts across every level.
 
 ### Nested Message Bombs
 
@@ -266,6 +284,7 @@ const safeFilename = sanitizeFilename(attachment.filename);
 
 - [ ] Set `maxNestingDepth` to a reasonable limit (e.g., 50)
 - [ ] Set `maxHeadersSize` to a reasonable limit (e.g., 512KB)
+- [ ] Set `maxPartCount` to the number of parts you actually expect (e.g., 1000)
 - [ ] Set `maxRfc822NestingDepth` to the number of nested levels you actually need
 - [ ] Check `rfc822DepthExceeded` on attachments if you scan content
 - [ ] Bound the size of untrusted input before parsing it
@@ -285,6 +304,7 @@ For production use with untrusted input:
 const PRODUCTION_OPTIONS = {
     maxNestingDepth: 50,
     maxHeadersSize: 524288,       // 512KB
+    maxPartCount: 1000,
     maxRfc822NestingDepth: 3,
     forceRfc822Attachments: true,
     attachmentEncoding: 'base64'  // Easier to validate

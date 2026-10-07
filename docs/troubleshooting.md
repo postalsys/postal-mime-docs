@@ -76,7 +76,7 @@ const email = await PostalMime.parse(rawEmail, {
 
 ### "maxNestingDepth must be a non-negative integer"
 
-**Cause**: One of the limit options (`maxNestingDepth`, `maxHeadersSize` or `maxRfc822NestingDepth`) was given a value that is not a non-negative integer, such as a numeric string, `NaN` or `Infinity`. The parser rejects these with a `TypeError` instead of silently switching the limit off.
+**Cause**: One of the limit options (`maxNestingDepth`, `maxHeadersSize`, `maxPartCount` or `maxRfc822NestingDepth`) was given a value that is not a non-negative integer, such as a numeric string, `NaN` or `Infinity`. The parser rejects these with a `TypeError` instead of silently switching the limit off.
 
 **Solution**: Pass a number. `0` is accepted and means a literal zero, not "use the default":
 
@@ -117,7 +117,7 @@ const contentType = email.headers.find(h => h.key === 'content-type');
 console.log('Content-Type:', contentType?.value);
 ```
 
-postal-mime does not guess the encoding: a part without a charset is decoded as UTF-8, and a charset label that cannot be resolved falls back to windows-1252. If the message declares the wrong charset, the text comes out wrong too.
+postal-mime follows a declared charset even when the bytes are not in it, so if the message declares the wrong charset, the text comes out wrong too. A part without a charset, or with a label that cannot be resolved, is decoded as UTF-8 when its bytes are valid UTF-8 and as windows-1252 otherwise, and an HTML part without a charset may name its own in a `<meta>` tag.
 
 ### Missing subject or other headers
 

@@ -52,6 +52,7 @@ interface PostalMimeOptions {
     attachmentEncoding?: AttachmentEncoding | undefined;
     maxNestingDepth?: number | undefined;
     maxHeadersSize?: number | undefined;
+    maxPartCount?: number | undefined;
     maxRfc822NestingDepth?: number | undefined;
 }
 ```
@@ -65,6 +66,7 @@ interface PostalMimeOptions {
 | `attachmentEncoding` | `AttachmentEncoding` | `'arraybuffer'` | Attachment content encoding |
 | `maxNestingDepth` | `number` | `256` | Maximum MIME nesting depth |
 | `maxHeadersSize` | `number` | `2097152` | Maximum total header size (bytes) |
+| `maxPartCount` | `number` | `10000` | Maximum number of MIME parts, the top-level part included |
 | `maxRfc822NestingDepth` | `number` | `10` | Maximum depth of inline `message/rfc822` parsing |
 
 See [Configuration](../getting-started/configuration) for the details of each option.
@@ -204,7 +206,7 @@ interface Attachment {
 | `contentId` | `string` | Content-ID header, angle brackets included |
 | `method` | `string` | Uppercased calendar method (for `text/calendar` and `application/ics`) |
 | `rfc822DepthExceeded` | `boolean` | `true` for a `message/rfc822` part that hit `maxRfc822NestingDepth` and was not parsed |
-| `content` | `ArrayBuffer \| Uint8Array \| string` | File content: `ArrayBuffer` by default, `Uint8Array` for calendar parts, a string with the `base64` and `utf8` encodings |
+| `content` | `ArrayBuffer \| Uint8Array \| string` | The decoded bytes of the part exactly as sent: `ArrayBuffer` by default, `Uint8Array` for calendar parts (normalized to UTF-8 with LF line endings), a string with the `base64` and `utf8` encodings |
 | `encoding` | `'base64' \| 'utf8'` | Set when `content` is a string |
 
 ## Email
@@ -253,8 +255,8 @@ interface Email {
 | `inReplyTo` | `string` | In-Reply-To |
 | `references` | `string` | References |
 | `date` | `string` | Date (ISO 8601, or the raw header value if it does not parse as a date) |
-| `html` | `string` | HTML content |
-| `text` | `string` | Plain text content |
+| `html` | `string` | HTML content, CRLF line endings normalized to LF |
+| `text` | `string` | Plain text content, CRLF line endings normalized to LF |
 | `attachments` | `Attachment[]` | Attachments |
 
 ## AddressParserOptions

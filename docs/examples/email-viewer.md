@@ -74,6 +74,8 @@ A basic email viewer that displays parsed email content.
             if (email.html) {
                 // Create iframe for safe HTML rendering
                 const iframe = document.createElement('iframe');
+                // the message HTML is untrusted, the sandbox keeps its scripts from running
+                iframe.setAttribute('sandbox', '');
                 iframe.style.width = '100%';
                 iframe.style.border = 'none';
                 iframe.style.minHeight = '400px';
@@ -298,6 +300,7 @@ function EmailViewer() {
                 {email.html ? (
                     <iframe
                         srcDoc={replaceInlineImages(email.html, email.attachments)}
+                        sandbox=""
                         title="Email content"
                         style={{ width: '100%', minHeight: '400px', border: 'none' }}
                     />
@@ -379,6 +382,7 @@ export default EmailViewer;
                 <iframe
                     v-if="email.html"
                     :srcdoc="processedHtml"
+                    sandbox=""
                     style="width: 100%; min-height: 400px; border: none;"
                 />
                 <pre v-else>{{ email.text }}</pre>

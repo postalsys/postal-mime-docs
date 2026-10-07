@@ -52,9 +52,10 @@ The `email` parameter accepts multiple input formats:
 | `attachmentEncoding` | `string` | `'arraybuffer'` | How to encode attachment content: `'arraybuffer'`, `'base64'`, or `'utf8'` |
 | `maxNestingDepth` | `number` | `256` | Maximum MIME part nesting depth |
 | `maxHeadersSize` | `number` | `2097152` | Maximum total header size in bytes (2MB), counted across every part |
+| `maxPartCount` | `number` | `10000` | Maximum number of MIME parts in a message, the top-level part included, counted across every level |
 | `maxRfc822NestingDepth` | `number` | `10` | Maximum depth of inline `message/rfc822` parsing; deeper messages become attachments flagged with `rfc822DepthExceeded` |
 
-The three limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with a `TypeError`, and `0` means a literal zero rather than the default.
+The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with a `TypeError`, and `0` means a literal zero rather than the default.
 
 #### Returns
 
@@ -206,8 +207,8 @@ Where a header is exposed as a single property, such as `subject`, `from` or `me
 |----------|------|-------------|
 | `subject` | `string \| undefined` | Subject line (decoded) |
 | `date` | `string \| undefined` | Date in ISO 8601 format |
-| `text` | `string \| undefined` | Plain text content |
-| `html` | `string \| undefined` | HTML content |
+| `text` | `string \| undefined` | Plain text content, CRLF line endings normalized to LF |
+| `html` | `string \| undefined` | HTML content, CRLF line endings normalized to LF |
 | `attachments` | `Attachment[]` | Array of attachments, see [Attachment](./types#attachment) |
 
 ## Complete Example

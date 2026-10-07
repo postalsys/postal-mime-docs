@@ -17,6 +17,7 @@ const options = {
     attachmentEncoding: 'arraybuffer', // How to return attachment content
     maxNestingDepth: 256,              // Maximum MIME nesting depth
     maxHeadersSize: 2097152,           // Maximum total header size (2MB)
+    maxPartCount: 10000,               // Maximum number of MIME parts
     maxRfc822NestingDepth: 10          // Maximum depth of inline message/rfc822 parsing
 };
 
@@ -176,6 +177,31 @@ try {
 }
 ```
 
+### maxPartCount
+
+Maximum number of MIME parts in a message, the top-level part included. Nesting depth alone does not bound the size of the tree: an empty part costs a few bytes of input and over a kilobyte of parser state, so a flat multipart of a million empty parts took a 7 MB message to 1.4 GB of memory. The count covers every part of the message, so a multipart cannot spend the budget again for each part it declares.
+
+```javascript
+const email = await PostalMime.parse(rawEmail, {
+    maxPartCount: 1000
+});
+```
+
+**Default:** `10000`
+
+If the count is exceeded, an error is thrown:
+
+```javascript
+try {
+    const email = await PostalMime.parse(emailWithManyParts, {
+        maxPartCount: 100
+    });
+} catch (error) {
+    console.error(error.message);
+    // "Maximum MIME part count of 100 parts exceeded"
+}
+```
+
 ### maxRfc822NestingDepth
 
 Maximum depth of inline `message/rfc822` parsing. Each inline nested message is parsed by a new parser instance that holds the whole nested message, so without a limit a small crafted email could nest messages until memory runs out. A message nested deeper than the limit is returned as a regular attachment with `rfc822DepthExceeded: true` instead of being parsed, and nothing inside it is reflected in `text`, `html` or `attachments`.
@@ -224,6 +250,7 @@ const options: PostalMimeOptions = {
     attachmentEncoding: 'base64',
     maxNestingDepth: 100,
     maxHeadersSize: 1048576,
+    maxPartCount: 1000,
     maxRfc822NestingDepth: 3
 };
 
@@ -238,6 +265,7 @@ When parsing untrusted email input:
 const secureOptions = {
     maxNestingDepth: 50,          // Reduce nesting limit
     maxHeadersSize: 524288,       // 512KB header limit
+    maxPartCount: 1000,           // Fewer parts than the default 10000
     maxRfc822NestingDepth: 3,     // Fewer levels of nested messages
     forceRfc822Attachments: true  // Don't auto-parse nested emails
 };
@@ -245,7 +273,7 @@ const secureOptions = {
 const email = await PostalMime.parse(untrustedEmail, secureOptions);
 ```
 
-These options limit nesting, not breadth. A single multipart part with a very large number of children is still expensive to parse, so bound the size of untrusted input before it reaches the parser.
+The whole message is held in memory while it is parsed, so bound the size of untrusted input before it reaches the parser as well.
 
 ## Default Values Summary
 
@@ -256,4 +284,5 @@ These options limit nesting, not breadth. A single multipart part with a very la
 | `attachmentEncoding` | `'arraybuffer'` |
 | `maxNestingDepth` | `256` |
 | `maxHeadersSize` | `2097152` (2MB) |
+| `maxPartCount` | `10000` |
 | `maxRfc822NestingDepth` | `10` |
