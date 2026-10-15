@@ -59,6 +59,16 @@ const email = await PostalMime.parse(rawEmail, {
 });
 ```
 
+### Forwarded Address Limit
+
+The From, To, Cc and Bcc of every inline forwarded message are rendered into the `text` and `html` of the message, at some 60 characters of HTML per short address. `maxForwardedAddresses` (default: 10000) caps these addresses, counted across every inline forward and every level of nesting.
+
+```javascript
+const email = await PostalMime.parse(rawEmail, {
+    maxForwardedAddresses: 1000
+});
+```
+
 ### Nested Message Recursion Limit
 
 Inline `message/rfc822` parts are parsed by a new parser instance per level, and each instance holds the whole nested message, so a small email that nests messages hundreds of levels deep could exhaust memory. `maxRfc822NestingDepth` (default: 10) caps that recursion: a message nested deeper is returned as an attachment flagged with `rfc822DepthExceeded: true`, and nothing inside it is reflected in `text`, `html` or `attachments`.
@@ -241,6 +251,12 @@ A flat multipart with hundreds of thousands of empty parts, cheap to send and ex
 Messages nested inside messages, each level spawning a parser that holds the whole nested message.
 
 **Protection:** `maxRfc822NestingDepth` caps the recursion and flags the skipped messages with `rfc822DepthExceeded`.
+
+### Forwarded Header Amplification
+
+Many inline forwards, each with a header of thousands of one-character addresses, render into far more HTML than the message is long.
+
+**Protection:** `maxForwardedAddresses` limits the addresses rendered from inline forwards across every level.
 
 ### Recursive Address Groups
 

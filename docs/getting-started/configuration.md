@@ -18,7 +18,8 @@ const options = {
     maxNestingDepth: 256,              // Maximum MIME nesting depth
     maxHeadersSize: 2097152,           // Maximum total header size (2MB)
     maxPartCount: 10000,               // Maximum number of MIME parts
-    maxRfc822NestingDepth: 10          // Maximum depth of inline message/rfc822 parsing
+    maxRfc822NestingDepth: 10,         // Maximum depth of inline message/rfc822 parsing
+    maxForwardedAddresses: 10000       // Maximum addresses rendered from inline forwards
 };
 
 const email = await PostalMime.parse(rawEmail, options);
@@ -227,6 +228,31 @@ Use `0` to disable inline parsing entirely, so that every `message/rfc822` part 
 If you scan messages for malicious content, do not treat `attachments` as complete without checking `rfc822DepthExceeded`. A sender can push a payload past the limit to keep it out of `text`, `html` and `attachments`. See the [Security guide](../guides/security#nested-message-recursion-limit).
 :::
 
+### maxForwardedAddresses
+
+Maximum number of From, To, Cc and Bcc addresses across all inline `message/rfc822` parts, a group and each of its members counted. The headers of every inline forwarded message are rendered into the `text` and `html` of the message, an address of one or two bytes as some 60 characters of HTML. `maxHeadersSize` bounds the header bytes of each nested message on its own, so this count is shared by every level of nesting to keep the output from growing with the number of forwards. The headers of the top-level message are not rendered and do not count.
+
+```javascript
+const email = await PostalMime.parse(rawEmail, {
+    maxForwardedAddresses: 1000
+});
+```
+
+**Default:** `10000`
+
+If the count is exceeded, an error is thrown:
+
+```javascript
+try {
+    const email = await PostalMime.parse(emailWithManyForwards, {
+        maxForwardedAddresses: 100
+    });
+} catch (error) {
+    console.error(error.message);
+    // "Maximum forwarded address count of 100 addresses exceeded"
+}
+```
+
 ## Limit Validation
 
 The three limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with a `TypeError` rather than silently disabling the limit, and `0` means a literal zero, not "use the default". This matters when options are forwarded from a request or a configuration file:
@@ -286,3 +312,4 @@ The whole message is held in memory while it is parsed, so bound the size of unt
 | `maxHeadersSize` | `2097152` (2MB) |
 | `maxPartCount` | `10000` |
 | `maxRfc822NestingDepth` | `10` |
+| `maxForwardedAddresses` | `10000` |

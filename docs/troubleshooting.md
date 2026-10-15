@@ -76,7 +76,7 @@ const email = await PostalMime.parse(rawEmail, {
 
 ### "maxNestingDepth must be a non-negative integer"
 
-**Cause**: One of the limit options (`maxNestingDepth`, `maxHeadersSize`, `maxPartCount` or `maxRfc822NestingDepth`) was given a value that is not a non-negative integer, such as a numeric string, `NaN` or `Infinity`. The parser rejects these with a `TypeError` instead of silently switching the limit off.
+**Cause**: One of the limit options (`maxNestingDepth`, `maxHeadersSize`, `maxPartCount`, `maxRfc822NestingDepth` or `maxForwardedAddresses`) was given a value that is not a non-negative integer, such as a numeric string, `NaN` or `Infinity`. The parser rejects these with a `TypeError` instead of silently switching the limit off.
 
 **Solution**: Pass a number. `0` is accepted and means a literal zero, not "use the default":
 

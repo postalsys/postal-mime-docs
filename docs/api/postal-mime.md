@@ -54,6 +54,7 @@ The `email` parameter accepts multiple input formats:
 | `maxHeadersSize` | `number` | `2097152` | Maximum total header size in bytes (2MB), counted across every part |
 | `maxPartCount` | `number` | `10000` | Maximum number of MIME parts in a message, the top-level part included, counted across every level |
 | `maxRfc822NestingDepth` | `number` | `10` | Maximum depth of inline `message/rfc822` parsing; deeper messages become attachments flagged with `rfc822DepthExceeded` |
+| `maxForwardedAddresses` | `number` | `10000` | Maximum number of From, To, Cc and Bcc addresses across all inline `message/rfc822` parts, a group and each of its members included, counted across every level |
 
 The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with a `TypeError`, and `0` means a literal zero rather than the default.
 

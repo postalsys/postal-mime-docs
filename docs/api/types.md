@@ -54,6 +54,7 @@ interface PostalMimeOptions {
     maxHeadersSize?: number | undefined;
     maxPartCount?: number | undefined;
     maxRfc822NestingDepth?: number | undefined;
+    maxForwardedAddresses?: number | undefined;
 }
 ```
 
@@ -68,6 +69,7 @@ interface PostalMimeOptions {
 | `maxHeadersSize` | `number` | `2097152` | Maximum total header size (bytes) |
 | `maxPartCount` | `number` | `10000` | Maximum number of MIME parts, the top-level part included |
 | `maxRfc822NestingDepth` | `number` | `10` | Maximum depth of inline `message/rfc822` parsing |
+| `maxForwardedAddresses` | `number` | `10000` | Maximum From, To, Cc and Bcc addresses across inline `message/rfc822` parts, counted across every level |
 
 See [Configuration](../getting-started/configuration) for the details of each option.
 
