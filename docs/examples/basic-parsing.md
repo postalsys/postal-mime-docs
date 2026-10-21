@@ -281,6 +281,8 @@ async function safeParse(rawEmail) {
 
         return {
             success: false,
+            // eg. EMAXHEADERSIZE, see the Errors page for the full list
+            code: error.code,
             error: error.message
         };
     }

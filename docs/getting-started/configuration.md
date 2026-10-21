@@ -139,7 +139,7 @@ const email = await PostalMime.parse(rawEmail, {
 
 **Default:** `256`
 
-If the nesting depth is exceeded, an error is thrown:
+If the nesting depth is exceeded, the parse rejects with an `EMAXNESTINGDEPTH` error:
 
 ```javascript
 try {
@@ -147,8 +147,8 @@ try {
         maxNestingDepth: 10
     });
 } catch (error) {
-    console.error(error.message);
-    // "Maximum MIME nesting depth of 10 levels exceeded"
+    console.error(error.code, error.message);
+    // EMAXNESTINGDEPTH Maximum MIME nesting depth of 10 levels exceeded
 }
 ```
 
@@ -165,7 +165,7 @@ const email = await PostalMime.parse(rawEmail, {
 
 **Default:** `2097152` (2MB)
 
-If the header size is exceeded, an error is thrown:
+If the header size is exceeded, the parse rejects with an `EMAXHEADERSIZE` error:
 
 ```javascript
 try {
@@ -173,8 +173,8 @@ try {
         maxHeadersSize: 1024
     });
 } catch (error) {
-    console.error(error.message);
-    // "Maximum header size of 1024 bytes exceeded"
+    console.error(error.code, error.message);
+    // EMAXHEADERSIZE Maximum header size of 1024 bytes exceeded
 }
 ```
 
@@ -190,7 +190,7 @@ const email = await PostalMime.parse(rawEmail, {
 
 **Default:** `10000`
 
-If the count is exceeded, an error is thrown:
+If the count is exceeded, the parse rejects with an `EMAXPARTCOUNT` error:
 
 ```javascript
 try {
@@ -198,8 +198,8 @@ try {
         maxPartCount: 100
     });
 } catch (error) {
-    console.error(error.message);
-    // "Maximum MIME part count of 100 parts exceeded"
+    console.error(error.code, error.message);
+    // EMAXPARTCOUNT Maximum MIME part count of 100 parts exceeded
 }
 ```
 
@@ -240,7 +240,7 @@ const email = await PostalMime.parse(rawEmail, {
 
 **Default:** `10000`
 
-If the count is exceeded, an error is thrown:
+If the count is exceeded, the parse rejects with an `EMAXFORWARDEDADDRESSES` error:
 
 ```javascript
 try {
@@ -248,21 +248,21 @@ try {
         maxForwardedAddresses: 100
     });
 } catch (error) {
-    console.error(error.message);
-    // "Maximum forwarded address count of 100 addresses exceeded"
+    console.error(error.code, error.message);
+    // EMAXFORWARDEDADDRESSES Maximum forwarded address count of 100 addresses exceeded
 }
 ```
 
 ## Limit Validation
 
-The three limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with a `TypeError` rather than silently disabling the limit, and `0` means a literal zero, not "use the default". This matters when options are forwarded from a request or a configuration file:
+The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with an `EINVALIDOPTION` `TypeError` rather than silently disabling the limit, and `0` means a literal zero, not "use the default". This matters when options are forwarded from a request or a configuration file:
 
 ```javascript
 try {
     await PostalMime.parse(rawEmail, { maxNestingDepth: '50' });
 } catch (error) {
-    console.error(error instanceof TypeError, error.message);
-    // true "maxNestingDepth must be a non-negative integer"
+    console.error(error.code, error.message);
+    // EINVALIDOPTION maxNestingDepth must be a non-negative integer
 }
 ```
 

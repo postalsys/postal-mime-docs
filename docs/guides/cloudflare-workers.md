@@ -259,8 +259,7 @@ export default {
 
             // Process email...
         } catch (error) {
-            if (error.message.includes('nesting depth') ||
-                error.message.includes('header size')) {
+            if (['EMAXNESTINGDEPTH', 'EMAXHEADERSIZE', 'EMAXPARTCOUNT', 'EMAXFORWARDEDADDRESSES'].includes(error.code)) {
                 console.error('Potentially malicious email rejected');
                 return; // Drop the email
             }

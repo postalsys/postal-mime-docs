@@ -30,6 +30,7 @@ const sidebars: SidebarsConfig = {
         'api/address-parser',
         'api/decode-words',
         'api/types',
+        'api/errors',
       ],
     },
     {

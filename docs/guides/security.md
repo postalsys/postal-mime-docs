@@ -24,14 +24,14 @@ const email = await PostalMime.parse(rawEmail, {
 });
 ```
 
-When the limit is exceeded, an error is thrown:
+When the limit is exceeded, the parse rejects with an `EMAXNESTINGDEPTH` error:
 
 ```javascript
 try {
     const email = await PostalMime.parse(maliciousEmail);
 } catch (error) {
-    console.error(error.message);
-    // "Maximum MIME nesting depth of 256 levels exceeded"
+    console.error(error.code, error.message);
+    // EMAXNESTINGDEPTH Maximum MIME nesting depth of 256 levels exceeded
 }
 ```
 
@@ -94,7 +94,7 @@ for (const attachment of email.attachments) {
 
 ### Limit Option Validation
 
-The three limit options must be non-negative integers. A numeric string, `NaN`, `Infinity` or a negative number rejects the parse with a `TypeError` instead of silently switching the limit off, so options forwarded from a request or a configuration file cannot be used to disable the protections.
+The limit options must be non-negative integers. A numeric string, `NaN`, `Infinity` or a negative number rejects the parse with an `EINVALIDOPTION` `TypeError` instead of silently switching the limit off, so options forwarded from a request or a configuration file cannot be used to disable the protections.
 
 ### Consistent Header Resolution
 
@@ -130,9 +130,11 @@ const email = await PostalMime.parse(untrustedEmail, secureOptions);
 
 ### 2. Handle Parsing Errors
 
-Always wrap parsing in try-catch:
+Always wrap parsing in try-catch, and tell a message that exceeds a limit apart from a bug in the calling code by its [error code](../api/errors):
 
 ```javascript
+const LIMIT_ERRORS = new Set(['EMAXNESTINGDEPTH', 'EMAXHEADERSIZE', 'EMAXPARTCOUNT', 'EMAXFORWARDEDADDRESSES']);
+
 async function parseEmailSafely(rawEmail) {
     try {
         return await PostalMime.parse(rawEmail, {
@@ -142,8 +144,11 @@ async function parseEmailSafely(rawEmail) {
             maxRfc822NestingDepth: 3
         });
     } catch (error) {
-        console.error('Email parsing failed:', error.message);
-        return null;
+        if (LIMIT_ERRORS.has(error.code)) {
+            console.error('Email rejected:', error.message);
+            return null;
+        }
+        throw error;
     }
 }
 ```

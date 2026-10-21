@@ -49,14 +49,14 @@ The `email` parameter accepts multiple input formats:
 |--------|------|---------|-------------|
 | `rfc822Attachments` | `boolean` | `false` | Treat `message/rfc822` parts without Content-Disposition as attachments |
 | `forceRfc822Attachments` | `boolean` | `false` | Treat all `message/rfc822` parts as attachments |
-| `attachmentEncoding` | `string` | `'arraybuffer'` | How to encode attachment content: `'arraybuffer'`, `'base64'`, or `'utf8'` |
+| `attachmentEncoding` | `string` | `'arraybuffer'` | How to encode attachment content: `'arraybuffer'`, `'base64'`, or `'utf8'`. Any other value is an `EINVALIDOPTION` error |
 | `maxNestingDepth` | `number` | `256` | Maximum MIME part nesting depth |
 | `maxHeadersSize` | `number` | `2097152` | Maximum total header size in bytes (2MB), counted across every part |
 | `maxPartCount` | `number` | `10000` | Maximum number of MIME parts in a message, the top-level part included, counted across every level |
 | `maxRfc822NestingDepth` | `number` | `10` | Maximum depth of inline `message/rfc822` parsing; deeper messages become attachments flagged with `rfc822DepthExceeded` |
 | `maxForwardedAddresses` | `number` | `10000` | Maximum number of From, To, Cc and Bcc addresses across all inline `message/rfc822` parts, a group and each of its members included, counted across every level |
 
-The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with a `TypeError`, and `0` means a literal zero rather than the default.
+The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with an `EINVALIDOPTION` `TypeError`, and `0` means a literal zero rather than the default.
 
 #### Returns
 
@@ -110,8 +110,10 @@ const parser = new PostalMime({ attachmentEncoding: 'base64' });
 const email = await parser.parse(rawEmail);
 ```
 
+The constructor validates the options and throws an `EINVALIDOPTION` error synchronously for an invalid one. The static `PostalMime.parse()` reports the same error by rejecting its promise.
+
 :::caution
-Parser instances cannot be reused. Create a new instance for each email you parse.
+Parser instances cannot be reused. Calling `parse()` a second time rejects with an `EPARSERREUSED` error. Create a new instance for each email you parse.
 :::
 
 ## Instance Methods
@@ -258,20 +260,28 @@ const email: Email = await PostalMime.parse(rawEmail, options);
 
 ## Error Handling
 
+Every error the parser throws has a `code` property. See [Errors](./errors) for the full list of codes.
+
 ```javascript
 try {
     const email = await PostalMime.parse(rawEmail);
 } catch (error) {
-    if (error instanceof TypeError) {
-        console.error('Invalid parser option:', error.message);
-    } else if (error.message.includes('nesting depth')) {
-        console.error('Email has too many nested parts');
-    } else if (error.message.includes('header size')) {
-        console.error('Email headers are too large');
-    } else if (error.message.includes('Can not reuse parser')) {
-        console.error('Parser instance already used');
-    } else {
-        console.error('Parsing failed:', error);
+    switch (error.code) {
+        case 'EINVALIDOPTION':
+        case 'EINVALIDINPUT':
+            console.error('Invalid parser option or input:', error.message);
+            break;
+        case 'EMAXNESTINGDEPTH':
+            console.error('Email has too many nested parts');
+            break;
+        case 'EMAXHEADERSIZE':
+            console.error('Email headers are too large');
+            break;
+        case 'EPARSERREUSED':
+            console.error('Parser instance already used');
+            break;
+        default:
+            console.error('Parsing failed:', error);
     }
 }
 ```
@@ -281,3 +291,4 @@ try {
 - [addressParser()](./address-parser) - Parse email addresses
 - [decodeWords()](./decode-words) - Decode MIME encoded words
 - [Types](./types) - TypeScript type definitions
+- [Errors](./errors) - Error codes

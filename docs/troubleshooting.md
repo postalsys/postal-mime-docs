@@ -10,7 +10,11 @@ Common issues and their solutions when using postal-mime.
 
 ## Parsing Errors
 
+Every error the parser throws has a `code` property. Check `error.code` rather than the message text, see [Errors](./api/errors) for the full list.
+
 ### "Can not reuse parser, create a new PostalMime object"
+
+**Code**: `EPARSERREUSED`
 
 **Cause**: Attempting to use the same parser instance twice.
 
@@ -35,6 +39,8 @@ await parser2.parse(email2);
 
 ### "Maximum MIME nesting depth exceeded"
 
+**Code**: `EMAXNESTINGDEPTH`
+
 **Cause**: The email contains more nested MIME parts than allowed (default: 256).
 
 **Solutions**:
@@ -51,7 +57,7 @@ const email = await PostalMime.parse(rawEmail, {
 try {
     const email = await PostalMime.parse(rawEmail);
 } catch (error) {
-    if (error.message.includes('nesting depth')) {
+    if (error.code === 'EMAXNESTINGDEPTH') {
         console.log('Rejecting potentially malicious email');
         return;
     }
@@ -60,6 +66,8 @@ try {
 ```
 
 ### "Maximum header size exceeded"
+
+**Code**: `EMAXHEADERSIZE`
 
 **Cause**: Headers exceed the size limit (default: 2MB).
 
@@ -76,7 +84,9 @@ const email = await PostalMime.parse(rawEmail, {
 
 ### "maxNestingDepth must be a non-negative integer"
 
-**Cause**: One of the limit options (`maxNestingDepth`, `maxHeadersSize`, `maxPartCount`, `maxRfc822NestingDepth` or `maxForwardedAddresses`) was given a value that is not a non-negative integer, such as a numeric string, `NaN` or `Infinity`. The parser rejects these with a `TypeError` instead of silently switching the limit off.
+**Code**: `EINVALIDOPTION`
+
+**Cause**: One of the limit options (`maxNestingDepth`, `maxHeadersSize`, `maxPartCount`, `maxRfc822NestingDepth` or `maxForwardedAddresses`) was given a value that is not a non-negative integer, such as a numeric string, `NaN` or `Infinity`. The parser rejects these with a `TypeError` that has the code `EINVALIDOPTION` instead of silently switching the limit off.
 
 **Solution**: Pass a number. `0` is accepted and means a literal zero, not "use the default":
 

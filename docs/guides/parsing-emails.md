@@ -326,20 +326,24 @@ console.log(email.date);
 
 ## Error Handling
 
-Handle parsing errors gracefully:
+Every error the parser throws has a `code` property, see [Errors](../api/errors) for the full list. Check the code rather than the message, which may change between releases:
 
 ```javascript
 try {
     const email = await PostalMime.parse(rawEmail);
 } catch (error) {
-    if (error instanceof TypeError) {
-        console.error('Invalid parser option:', error.message);
-    } else if (error.message.includes('nesting depth')) {
-        console.error('Email has too many nested parts');
-    } else if (error.message.includes('header size')) {
-        console.error('Email headers are too large');
-    } else {
-        console.error('Failed to parse email:', error);
+    switch (error.code) {
+        case 'EINVALIDOPTION':
+            console.error('Invalid parser option:', error.message);
+            break;
+        case 'EMAXNESTINGDEPTH':
+            console.error('Email has too many nested parts');
+            break;
+        case 'EMAXHEADERSIZE':
+            console.error('Email headers are too large');
+            break;
+        default:
+            console.error('Failed to parse email:', error);
     }
 }
 ```

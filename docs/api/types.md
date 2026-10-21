@@ -23,7 +23,9 @@ import type {
     AttachmentEncoding,
     PostalMimeOptions,
     AddressParserOptions,
-    RawEmail
+    RawEmail,
+    PostalMimeError,
+    ErrorCode
 } from 'postal-mime';
 ```
 
@@ -271,6 +273,38 @@ interface AddressParserOptions {
 }
 ```
 
+## PostalMimeError
+
+The errors the parser throws. See [Errors](./errors) for what each code means.
+
+```typescript
+type ErrorCode =
+    | 'EINVALIDOPTION'
+    | 'EINVALIDINPUT'
+    | 'EPARSERREUSED'
+    | 'EMAXNESTINGDEPTH'
+    | 'EMAXHEADERSIZE'
+    | 'EMAXPARTCOUNT'
+    | 'EMAXFORWARDEDADDRESSES';
+
+interface PostalMimeError extends Error {
+    code: ErrorCode;
+}
+```
+
+A caught value is `unknown`, so narrow it before reading the code:
+
+```typescript
+try {
+    await PostalMime.parse(rawEmail);
+} catch (error) {
+    const code = (error as Partial<PostalMimeError>).code;
+    if (code === 'EMAXHEADERSIZE') {
+        // ...
+    }
+}
+```
+
 ## Complete Example
 
 ```typescript
@@ -368,3 +402,4 @@ The declarations are generated from the TypeScript source and shipped next to ea
 - [PostalMime](./postal-mime) - Main parsing class
 - [addressParser()](./address-parser) - Address parsing utility
 - [decodeWords()](./decode-words) - MIME decoding utility
+- [Errors](./errors) - Error codes
