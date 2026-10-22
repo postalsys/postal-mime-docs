@@ -176,7 +176,7 @@ Line endings are normalized to LF. When parts of different types are mixed, such
 
 ### format=flowed
 
-Text with `format=flowed` (RFC 3676) is unfolded: a line that ends with a space continues on the next one. Quoted paragraphs are unfolded the same way, a change of quote depth ends a paragraph, and the `-- ` signature separator is kept as it is. With `delsp=yes`, the space before the soft break is removed, which is how text in languages without word spaces is folded.
+Plain text with `format=flowed` (RFC 3676) is unfolded: a line that ends with a space continues on the next one. The parameter is ignored on an HTML part (since 4.1.4). Quoted paragraphs are unfolded the same way, a change of quote depth ends a paragraph, and the `-- ` signature separator is kept as it is. With `delsp=yes`, the space before the soft break is removed, which is how text in languages without word spaces is folded.
 
 ```javascript
 import PostalMime from 'postal-mime';

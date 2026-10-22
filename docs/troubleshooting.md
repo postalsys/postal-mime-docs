@@ -48,7 +48,7 @@ If legitimate mail you need to accept hits a limit, raise only that limit, and o
 
 ### EINVALIDOPTION: "maxNestingDepth must be a non-negative integer"
 
-A limit option is not a non-negative integer, for example a numeric string read from an environment variable, `NaN` or `Infinity`. Convert the value and check it, and leave the option out to use the default:
+A limit option is not a non-negative integer, for example a numeric string read from an environment variable, `NaN` or `Infinity`; `maxPartCount` must be at least `1` ("maxPartCount must be a positive integer"). Convert the value and check it, and leave the option out to use the default:
 
 ```javascript
 import PostalMime from 'postal-mime';

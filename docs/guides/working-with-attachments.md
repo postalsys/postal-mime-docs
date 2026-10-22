@@ -161,7 +161,7 @@ function inlineImages(html, attachments) {
     const urls = new Map();
     for (const att of attachments) {
         if (att.related && att.contentId && att.encoding === 'base64') {
-            // contentId keeps its angle brackets, the cid: URL does not
+            // contentId usually keeps its angle brackets, the cid: URL does not
             const cid = att.contentId.replace(/^<|>$/g, '').toLowerCase();
             urls.set(cid, `data:${att.mimeType};base64,${att.content}`);
         }

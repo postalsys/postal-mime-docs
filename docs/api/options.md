@@ -37,7 +37,7 @@ const email = await PostalMime.parse('Subject: Hello\n\nHi there', {
 The options are validated when the parser is created, before any input is read.
 
 - The five `max*` limit options must be non-negative integers. Any other value, including a numeric string such as `'50'`, `NaN`, `Infinity`, a negative number or a fraction, is an [`EINVALIDOPTION`](./errors) `TypeError`. Before 2.7.6 such values were not checked, and a string or `NaN` switched the limit off.
-- `0` means a literal zero, not "use the default".
+- `0` means a literal zero, not "use the default". `maxPartCount` must be at least `1`, since the message itself is a part: `maxPartCount: 0` is an `EINVALIDOPTION` `TypeError` (since 4.1.4; before that it threw `EMAXPARTCOUNT` from the constructor).
 - An unknown `attachmentEncoding` is an `EINVALIDOPTION` `TypeError` (before 4.1.0 it was reported only after the whole message had been parsed).
 - `PostalMime.parse()` reports the error by rejecting its promise. `new PostalMime(options)` throws it synchronously.
 
@@ -202,7 +202,7 @@ try {
 
 ### maxPartCount
 
-Maximum number of MIME parts, the top-level part and the parts of inline `message/rfc822` sub-messages included. Nesting depth does not bound the size of the tree: an empty part costs a few bytes of input and over a kilobyte of parser state.
+Maximum number of MIME parts, the top-level part and the parts of inline `message/rfc822` sub-messages included. Nesting depth does not bound the size of the tree: an empty part costs a few bytes of input and over a kilobyte of parser state. The value must be at least `1`, since the message itself is a part (since 4.1.4).
 
 **Default:** `10000`
 

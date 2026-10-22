@@ -24,7 +24,7 @@ Five options bound the cost of a message. Each is documented in [Parser Options]
 
 `maxHeadersSize`, `maxPartCount` and `maxForwardedAddresses` are counted across the whole message, every part and every inline forward together (since 4.0.8), so neither a multipart nor a chain of forwards can claim a fresh budget for each part. A header line counts for at least 64 bytes, since what the parser keeps for a line is far larger than a short line.
 
-The limit options must be non-negative integers. A numeric string, `NaN`, `Infinity` or a negative number is an `EINVALIDOPTION` error instead of silently switching a limit off (since 2.7.6), and `0` means zero. Even so, a large enough value is as good as none, so do not pass an options object from an untrusted source to the parser.
+The limit options must be non-negative integers, and `maxPartCount` a positive one, since the message itself is a part (since 4.1.4). A numeric string, `NaN`, `Infinity` or a negative number is an `EINVALIDOPTION` error instead of silently switching a limit off (since 2.7.6), and `0` means zero. Even so, a large enough value is as good as none, so do not pass an options object from an untrusted source to the parser.
 
 :::warning Bound the input size
 The whole message is held in memory while it is parsed, a `ReadableStream` included. The limits bound what the parser does with a message, not how big it is, so reject oversized input before it reaches the parser.
@@ -65,16 +65,20 @@ A message that two programs read differently can show one thing to a spam filter
 ### Consistent header resolution
 
 - Where a header occurs more than once, the first occurrence wins, both for the headers that decide how a part is read (`Content-Type`, `Content-Transfer-Encoding`, `Content-Disposition`, `Content-ID`, `Content-Description`) and for properties such as `subject` and `from`. A duplicated parameter, such as a second `boundary`, resolves to the first one as well.
-- Only SP and HTAB continue a folded header. A line that starts with a non-breaking space, a byte order mark or another Unicode space is a header line of its own.
-- The header name is kept as written, whitespace included (since 4.1.1). A `From :` line, or a first line that starts with a space, is listed under a key such as `"from "` and is not read as the `From` header. Before 4.1.1 the name was trimmed, so such a line could become the sender here while a verifier that ignores it authenticated a different one.
+- Only SP and HTAB continue a folded header, and the header block ends at the first line that is neither a header field nor a fold (since 4.1.4), as Python's `email` package reads it. A junk line, a line that starts with a non-breaking space, a byte order mark or another Unicode space, or a header wrapped without folding whitespace starts the body, and the header-like lines behind it are body text. Before 4.1.4 such a line was a header line of its own and a `From` or `Content-Type` behind it was honored, where a scanner built on Python had read it as text. A line of only whitespace stays a fold unless the next line is not a header.
+- The header name is kept as written, whitespace included (since 4.1.1). A `From :` line, or a first line that starts with a space, is listed under a key such as `"from "` and is not read as the `From` header. Before 4.1.1 the name was trimmed, so such a line could become the sender here while a verifier that ignores it authenticated a different one. Whitespace before the colon keeps the line a header, as Go and mailparser read it, while Python ends the header block there.
+- A bare CR inside a header line is folded into a space in `value`, as Go and mailparser read it; Python reads it as a line end.
 - Every header is listed in `headers`, duplicates included, so a scanner can see them all.
 
 ### MIME structure
 
 - A line that matches the boundary of more than one open multipart is read as the boundary of the outermost one (since 4.1.1), as RFC 2046 implies and as Python and Go read it. A nested multipart cannot redeclare an ancestor's boundary to move parts in or out of the epilogue.
-- The Content-Transfer-Encoding token is matched whole (since 4.1.1), so `x-base64` is not decoded as base64.
+- The Content-Transfer-Encoding token is matched whole (since 4.1.1), so `x-base64` is not decoded as base64, and it is the token at the start of the value (since 4.1.4): `(comment) base64` and `base64 x` decode, a quoted `"base64"` does not, as Python and mailparser read them.
+- A `message/rfc822` part with a `base64` or `quoted-printable` transfer encoding, which RFC 2046 does not allow, is an attachment with its content decoded rather than an inline forward (since 4.1.4). Python reads the encoded lines as the nested message and finds no headers, text or attachments in it, and mailparser keeps the part as one attachment, so an inline rendering showed what a scanner built on either never saw.
+- `format=flowed` is unfolded in `text/plain` parts only (since 4.1.4). A browser never unfolds an HTML part, so under `delsp=yes` the fragments `<scri` and `pt>` on consecutive lines used to join into a tag that no browser or scanner sees.
+- A multipart whose `boundary` holds a non-ASCII character has no parts (since 4.1.4): its body is read as plain text, like that of a multipart without a boundary, because Python matches no line against such a boundary. A boundary from a header line in a legacy charset, re-encoded as UTF-8, used to match lines that no other parser read as part delimiters.
 - Text in a charset of the WHATWG replacement encoding (ISO-2022-KR, ISO-2022-CN, HZ-GB-2312) decodes to a single replacement character (since 4.1.1), because its shift sequences let the same bytes read as text to one decoder and as markup to another.
-- A UTF-16 byte order mark only decides the byte order under a label that leaves it open, such as `utf-16` (since 4.1.3). Under `utf-16be` or `utf-16le` the bytes are read in the order the label names, as Python reads them.
+- The UTF-16 charset labels honored are the ones Python and iconv-lite both decode: `utf-16`, `utf16`, `utf_16`, `utf-16le` and `utf-16be` (since 4.1.4). `unicode`, `csunicode`, `iso-10646-ucs-2`, `unicodefeff`, `unicodefffe`, `ucs-2`, `ucs2`, `utf16le` and `utf16be` are read like an unknown charset, because a label that only one of the two decodes lets the same bytes read as inert text to a scanner and as markup here. A byte order mark only decides the byte order under `utf-16` (since 4.1.3). Under `utf-16be` or `utf-16le` the bytes are read in the order the label names, as Python reads them.
 
 ### Address extraction safeguards
 
@@ -148,7 +152,7 @@ console.log(await parseOrReject('Subject: Hello\n\nBody')); // the parsed messag
 
 ### 3. Validate attachment types
 
-`mimeType` and `filename` are whatever the sender wrote. Allow only the types you need, and check the content where it matters:
+`mimeType` and `filename` are whatever the sender wrote. `mimeType`, `disposition`, `contentId` and `method` are the lowercased header tokens as sent, free of CR and LF but otherwise unvalidated: a `mimeType` can hold whitespace, quotes or path separators, and a `contentId` can lack its angle brackets, hold whitespace or repeat across attachments. Allow only the types you need, and check the content where it matters:
 
 ```javascript
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf', 'text/plain']);
@@ -209,7 +213,7 @@ An email can also load remote images and stylesheets, which tells the sender whe
 
 ### 6. Treat nested messages as content
 
-`text` and `html` contain the content of inline forwarded messages, rendered after a header block. A scanner that checks `text`, `html` and `attachments` sees everything the parser read, except what sits in an attachment flagged `rfc822DepthExceeded`, see [Nested message recursion limit](#nested-message-recursion-limit).
+`text` and `html` contain the content of inline forwarded messages, rendered after a header block. A forwarded message with a `base64` or `quoted-printable` transfer encoding is not rendered inline but listed as a `message/rfc822` attachment with its content decoded (since 4.1.4). A scanner that checks `text`, `html` and `attachments` sees everything the parser read, except what sits in an attachment flagged `rfc822DepthExceeded`, see [Nested message recursion limit](#nested-message-recursion-limit).
 
 ## Filename traversal
 

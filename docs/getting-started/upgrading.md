@@ -47,6 +47,7 @@ These releases did not change the API, but changed results that code may rely on
 | 4.1.0 | Every error has a [`code`](../api/errors). An unknown `attachmentEncoding` is rejected before parsing starts |
 | 4.1.1 | Whitespace around a header name stays in its `key` (`"from "` for a `From :` line). An encoded word never yields a mailbox address. A Content-Transfer-Encoding token is matched whole, so `x-base64` is not decoded. ISO-2022-KR, ISO-2022-CN and HZ-GB-2312 decode to a replacement character |
 | 4.1.3 | A UTF-16 byte order mark is honored only under a label that leaves the byte order open, such as `utf-16` |
+| 4.1.4 | The header block ends at the first line that is neither a header field nor a fold, so the header-like lines behind a junk line, a line starting with a Unicode space or a byte order mark, or an unfolded wrap are body text. A `message/rfc822` part with a `base64` or `quoted-printable` transfer encoding is an attachment, not an inline forward. `format=flowed` is unfolded in `text/plain` parts only. A multipart whose `boundary` holds a non-ASCII character is read as plain text. A quoted Content-Transfer-Encoding such as `"base64"` is not decoded. Only `utf-16`, `utf16`, `utf_16`, `utf-16le` and `utf-16be` are read as UTF-16. `maxPartCount: 0` is an `EINVALIDOPTION` error |
 
 ## See Also
 

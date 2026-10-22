@@ -12,7 +12,7 @@ Every error postal-mime throws has a `code` property that identifies it (since 4
 
 | Code | Error type | Cause |
 |------|------------|-------|
-| `EINVALIDOPTION` | `TypeError` | An option has an invalid value: a limit option that is not a non-negative integer, or an unknown `attachmentEncoding`. See [Validation](./options#limit-validation) |
+| `EINVALIDOPTION` | `TypeError` | An option has an invalid value: a limit option that is not a non-negative integer (`maxPartCount`: not a positive one), or an unknown `attachmentEncoding`. See [Validation](./options#limit-validation) |
 | `EINVALIDINPUT` | `TypeError` | The email is not of a supported [input type](./postal-mime#input-types), such as a number or a plain object, or a `ReadableStream` produced a chunk that is not an `ArrayBufferView` |
 | `EPARSERREUSED` | `Error` | `parse()` was called a second time on the same `PostalMime` instance |
 | `EMAXNESTINGDEPTH` | `Error` | MIME parts are nested deeper than [`maxNestingDepth`](./options#maxnestingdepth) |

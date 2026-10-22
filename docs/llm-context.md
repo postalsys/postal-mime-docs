@@ -8,7 +8,7 @@ description: The whole postal-mime API on one page, for AI coding assistants and
 
 This page summarizes the public API of postal-mime on one page, for AI coding assistants and anyone who wants the whole surface at a glance. Each section links to the canonical page with the details.
 
-**Documented release:** postal-mime 4.1.3
+**Documented release:** postal-mime 4.1.4
 
 ## Package
 
@@ -47,13 +47,13 @@ This page summarizes the public API of postal-mime on one page, for AI coding as
 | `maxRfc822NestingDepth` | `number` | `10` | Deeper nested messages become attachments with `rfc822DepthExceeded: true`; `0` disables inline parsing |
 | `maxForwardedAddresses` | `number` | `10000` | Addresses of inline forwards; `EMAXFORWARDEDADDRESSES` |
 
-Limit options must be non-negative integers, or `EINVALIDOPTION` is raised; `0` means zero. Details: [Parser Options](./api/options).
+Limit options must be non-negative integers, and `maxPartCount` a positive one, or `EINVALIDOPTION` is raised; `0` means zero. Details: [Parser Options](./api/options).
 
 ## Email object
 
 | Property | Type | Notes |
 |----------|------|-------|
-| `headers` | `{ key, originalKey, value }[]` | Always present. Top-level headers in order, duplicates kept. `key` lowercase with whitespace around the name kept, `value` unfolded, not decoded |
+| `headers` | `{ key, originalKey, value }[]` | Always present. Top-level headers in order, duplicates kept. `key` lowercase with whitespace around the name kept, `value` unfolded, not decoded. The block ends at the first line that is neither a header field nor a fold; what follows is body text |
 | `headerLines` | `{ key, line }[]` | Always present. Raw lines, folds joined with LF |
 | `from`, `sender` | `Address` | First occurrence |
 | `to`, `cc`, `bcc`, `replyTo` | `Address[]` | Every occurrence, in order |
@@ -70,10 +70,10 @@ Optional properties are absent, not `null`, when the message has no value. `Addr
 | Property | Type | Notes |
 |----------|------|-------|
 | `filename` | `string \| null` | Decoded, sender-controlled: sanitize before using as a path |
-| `mimeType` | `string` | Lowercase, sender-controlled |
+| `mimeType` | `string` | Lowercase, sender-controlled, not validated (may hold whitespace, quotes or path separators) |
 | `disposition` | `string \| null` | Lowercased Content-Disposition token |
 | `related` | `true` or absent | Inline resource in `multipart/related` with a Content-ID |
-| `contentId` | `string` or absent | Angle brackets included; `cid:` URLs omit them |
+| `contentId` | `string` or absent | Usually with angle brackets, not validated (may lack them or repeat); `cid:` URLs omit them |
 | `description` | `string` or absent | Decoded Content-Description |
 | `method` | `string` or absent | Uppercased calendar method, eg. `REQUEST` |
 | `rfc822DepthExceeded` | `true` or absent | Unparsed nested message; its content is not reflected anywhere else |
@@ -91,7 +91,7 @@ Every thrown error has `code` (since 4.1.0). `PostalMime.parse()` always rejects
 | `EPARSERREUSED` | `Error` | `parse()` called twice on one instance |
 | `EMAXNESTINGDEPTH`, `EMAXHEADERSIZE`, `EMAXPARTCOUNT`, `EMAXFORWARDEDADDRESSES` | `Error` | A security limit was exceeded |
 
-Malformed messages do not throw. `null`, `undefined` and `''` parse to an empty message. Details: [Errors](./api/errors).
+Malformed messages do not throw. `null`, `undefined` and `''` parse to an empty message. A malformed message is read the way Python's `email` package and mailparser read it: a `message/rfc822` part encoded as `base64` or `quoted-printable` is an attachment, `format=flowed` applies to `text/plain` only, a multipart whose boundary holds a non-ASCII character is plain text, a quoted `"base64"` transfer encoding is not decoded, and only `utf-16`, `utf16`, `utf_16`, `utf-16le` and `utf-16be` are read as UTF-16 (since 4.1.4). Details: [Errors](./api/errors), [Security](./guides/security#parsing-safeguards).
 
 ## Common mistakes to avoid
 

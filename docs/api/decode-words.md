@@ -81,7 +81,7 @@ console.log(decodeWords('=?UTF-8?X?invalid?=')); // "=?UTF-8?X?invalid?="
 
 The same charset handling applies to encoded words, to text and HTML bodies, and to RFC 2231 encoded parameters such as file names.
 
-Decoding is done with the runtime's `TextDecoder`, so every label of the [WHATWG Encoding Standard](https://encoding.spec.whatwg.org/#names-and-labels) is supported: UTF-8, UTF-16LE and UTF-16BE, the ISO-8859 family, windows-1250 through windows-1258, KOI8-R and KOI8-U, macintosh, GBK and GB18030, Big5, Shift_JIS, EUC-JP, ISO-2022-JP and EUC-KR, among others. A runtime built without some of these encodings, such as Node.js with small ICU, treats their labels as unknown.
+Decoding is done with the runtime's `TextDecoder`, so every label of the [WHATWG Encoding Standard](https://encoding.spec.whatwg.org/#names-and-labels) is supported, with the exception of some UTF-16 labels listed under [Special cases](#special-cases): UTF-8, UTF-16LE and UTF-16BE, the ISO-8859 family, windows-1250 through windows-1258, KOI8-R and KOI8-U, macintosh, GBK and GB18030, Big5, Shift_JIS, EUC-JP, ISO-2022-JP and EUC-KR, among others. A runtime built without some of these encodings, such as Node.js with small ICU, treats their labels as unknown.
 
 On top of those, labels that mail clients use but the standard does not list are mapped to the matching decoder (since 3.0.0):
 
@@ -96,7 +96,7 @@ On top of those, labels that mail clients use but the standard does not list are
 
 - **Unknown labels.** Text in a charset label that cannot be resolved is decoded as UTF-8 when its bytes are valid UTF-8, and as windows-1252 otherwise (since 4.0.5). A part without a charset is read the same way.
 - **The replacement encoding.** ISO-2022-KR, ISO-2022-CN and HZ-GB-2312 decode to a single U+FFFD replacement character, as they do in a browser (since 4.1.1). Their shift sequences let the same bytes read as text to one decoder and as markup to another.
-- **UTF-16 byte order marks.** A byte order mark decides the byte order only under a label that leaves it open: `utf-16`, `ucs-2`, `unicode`, `csunicode` and `iso-10646-ucs-2` (since 4.1.3). `utf-16le` and `utf-16be` are read in the order they name, whatever mark the bytes carry.
+- **UTF-16 labels.** The UTF-16 labels honored are the ones Python and iconv-lite both decode: `utf-16`, `utf16`, `utf_16`, `utf-16le` and `utf-16be` (since 4.1.4). The standard's `unicode`, `csunicode`, `iso-10646-ucs-2`, `unicodefeff`, `unicodefffe` and `ucs-2`, and the spellings `ucs2`, `utf16le` and `utf16be`, are treated as unknown labels, because text under a label that only one widely used parser decodes reads as inert text to one program and as markup to another. A byte order mark decides the byte order only under `utf-16` (since 4.1.3; until 4.1.4 also under `ucs-2`, `unicode`, `csunicode` and `iso-10646-ucs-2`). `utf-16le` and `utf-16be` are read in the order they name, whatever mark the bytes carry.
 - **Wrong labels.** A declared charset is followed even when the bytes are not valid in it, so a message that declares the wrong charset decodes to the wrong text or to replacement characters.
 
 ```javascript

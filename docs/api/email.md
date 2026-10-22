@@ -86,6 +86,18 @@ The value is unfolded per RFC 5322: the line break of a folded header is removed
 
 The name is otherwise kept as written. Since 4.1.1, whitespace between the name and the colon stays in the key, so a `From :` line is listed with the key `"from "` and is not read as the `From` header. This keeps a line that some parsers ignore from overriding the header that every other parser reads.
 
+The header block ends at the first line that is neither a header field (a name, an empty name or an mbox `From ` line, followed by a colon) nor a fold starting with SP or HTAB (since 4.1.4). That line and everything after it is the body, even when more header-like lines follow, as Python's `email` package reads it. A line of only whitespace is a fold unless the next line is not a header, in which case it ends the headers. A bare CR inside a header line is folded into a space in `value`.
+
+```javascript
+import PostalMime from 'postal-mime';
+
+const email = await PostalMime.parse('Subject: Hello\r\nnot a header\r\nContent-Type: text/html\r\n\r\n<p>Hi</p>');
+
+console.log(email.subject); // "Hello"
+console.log(email.html);    // undefined
+console.log(email.text);    // "not a header\nContent-Type: text/html\n\n<p>Hi</p>\n"
+```
+
 ```javascript
 import PostalMime from 'postal-mime';
 
@@ -165,7 +177,7 @@ console.log((await PostalMime.parse('Date: yesterday\n\nx')).date);             
 - Several inline parts of the same type, such as the text parts of a `multipart/mixed`, are joined with a line break, in message order.
 - If the message has an HTML part anywhere, a text-only part is converted to HTML so that `html` covers the whole body, and likewise an HTML-only part is converted to plain text for `text`. If the message has parts of one type only, the other property is `undefined`.
 
-The content is decoded from its transfer encoding and charset, and CRLF line endings are normalized to LF. A part without a charset, or with a label that cannot be resolved, is decoded as UTF-8 when its bytes are valid UTF-8 and as windows-1252 otherwise, and an HTML part without one may declare its charset in a `<meta>` tag (since 4.0.5). See [Supported charsets](./decode-words#supported-charsets) for the labels that are recognized. `format=flowed` text (RFC 3676) is unfolded, honoring `delsp=yes`.
+The content is decoded from its transfer encoding and charset, and CRLF line endings are normalized to LF. A part without a charset, or with a label that cannot be resolved, is decoded as UTF-8 when its bytes are valid UTF-8 and as windows-1252 otherwise, and an HTML part without one may declare its charset in a `<meta>` tag (since 4.0.5). See [Supported charsets](./decode-words#supported-charsets) for the labels that are recognized. `format=flowed` text (RFC 3676) in a `text/plain` part is unfolded, honoring `delsp=yes`; an HTML part is never unfolded (since 4.1.4).
 
 ```javascript
 import PostalMime from 'postal-mime';
@@ -193,7 +205,7 @@ console.log(email.html); // "<div>Plain part</div>\n<p>HTML part</p>"
 
 ### Nested messages
 
-A `message/rfc822` part is parsed inline unless the [classification options](./options#classification-options) or a delivery report make it an attachment. An inline message contributes a header block with its From, Subject, Date, To, Cc and Bcc, followed by its own text, to `text` and `html`, and its attachments are added to `attachments`. The date in the header block is formatted for the runtime's default locale.
+A `message/rfc822` part is parsed inline unless the [classification options](./options#classification-options) or a delivery report make it an attachment. A part with a `base64` or `quoted-printable` transfer encoding, which RFC 2046 does not allow for a message, is an attachment as well, with its content decoded (since 4.1.4). An inline message contributes a header block with its From, Subject, Date, To, Cc and Bcc, followed by its own text, to `text` and `html`, and its attachments are added to `attachments`. The date in the header block is formatted for the runtime's default locale.
 
 ```javascript
 import PostalMime from 'postal-mime';
@@ -235,12 +247,12 @@ Every part that does not end up in `text` or `html` is listed in `attachments`, 
 | Property | Type | Description |
 |----------|------|-------------|
 | `filename` | `string \| null` | The decoded file name from the `filename` parameter of Content-Disposition, or the `name` parameter of Content-Type, or `null`. RFC 2231 continuations and encoded words are decoded |
-| `mimeType` | `string` | The lowercased MIME type, `text/plain` when the part has no Content-Type (`message/rfc822` inside a `multipart/digest`) |
+| `mimeType` | `string` | The lowercased Content-Type value as sent, `text/plain` when the part has no Content-Type (`message/rfc822` inside a `multipart/digest`). Not validated: it can hold whitespace, quotes or path separators |
 | `disposition` | `string \| null` | The lowercased Content-Disposition type, usually `"attachment"` or `"inline"`, or `null` when the part has none. Other tokens, such as `form-data`, are passed through as they are |
 | `related` | `boolean` | `true` for a part inside a `multipart/related` that has a Content-ID, such as an inline image referenced from the HTML. Not set otherwise |
-| `contentId` | `string` | The Content-ID header, angle brackets included. Not set when the part has none |
+| `contentId` | `string` | The Content-ID header value as sent, usually with its angle brackets. Not validated: it can lack the brackets, hold whitespace, or repeat across attachments. Not set when the part has none |
 | `description` | `string` | The decoded Content-Description header (since 2.2.3). Not set when the part has none |
-| `method` | `string` | The uppercased `method` parameter of a `text/calendar` or `application/ics` part, such as `"REQUEST"`. Not set otherwise |
+| `method` | `string` | The uppercased `method` parameter of a `text/calendar` or `application/ics` part, such as `"REQUEST"`, as sent. Not set otherwise |
 | `rfc822DepthExceeded` | `boolean` | `true` for a `message/rfc822` part that was nested deeper than [`maxRfc822NestingDepth`](./options#maxrfc822nestingdepth) and was not parsed. Not set otherwise (since 2.7.6) |
 | `content` | `ArrayBuffer \| Uint8Array \| string` | The content, see below |
 | `encoding` | `'base64' \| 'utf8'` | Set when `content` is a string, to the `attachmentEncoding` that produced it |
