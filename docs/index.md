@@ -1,24 +1,15 @@
 ---
+title: Introduction
 sidebar_position: 1
 slug: /
+description: postal-mime is an email parsing library for Node.js, browsers, Web Workers and serverless runtimes that turns a raw RFC 822 message into a structured object.
 ---
 
 # postal-mime
 
 <img src="/img/mascot/logo.png" alt="postal-mime mascot" className="mascot-header" />
 
-**postal-mime** is an email parsing library for Node.js, browsers (including Web Workers), and serverless environments (like Cloudflare Email Workers). It takes in a raw email message (RFC822 format) and outputs a structured object containing headers, recipients, attachments, and more.
-
-## Features
-
-- **Zero Dependencies** - No external dependencies, keeping your bundle size minimal
-- **Universal Compatibility** - Works in browsers, Web Workers, Node.js, and serverless environments like Cloudflare Workers
-- **Written in TypeScript** - Type declarations ship with the package for both ES modules and CommonJS
-- **RFC Compliant** - Follows RFC 2822/5322 email standards
-- **Complex MIME Handling** - Supports multipart messages, nested parts, and attachments
-- **Security Built-in** - Limits on MIME nesting depth, total header size and nested message recursion
-
-## Quick Example
+**postal-mime** is an email parsing library for Node.js, browsers (including Web Workers) and serverless runtimes such as Cloudflare Email Workers. It takes a raw email message in RFC 822 format and returns a structured object with its headers, addresses, text and HTML bodies, and attachments.
 
 ```javascript
 import PostalMime from 'postal-mime';
@@ -29,8 +20,16 @@ Content-Type: text/html; charset=utf-8
 <p>Welcome to postal-mime!</p>`);
 
 console.log(email.subject); // "Hello World"
-console.log(email.html);    // "<p>Welcome to postal-mime!</p>"
+console.log(email.html);    // "<p>Welcome to postal-mime!</p>\n"
 ```
+
+## Features
+
+- **No runtime dependencies.**
+- **Runs anywhere with `TextDecoder`, `Blob` and `ReadableStream`:** Node.js 20 or newer, browsers, Web Workers, Deno, Bun and Cloudflare Workers.
+- **ES module and CommonJS builds**, compiled from the same TypeScript source, each with its own type declarations.
+- **MIME handling:** multipart messages, nested `message/rfc822` parts, RFC 2047 encoded words, RFC 2231 parameters, `format=flowed` text, and the charset labels mail clients use in practice.
+- **Security limits** on nesting depth, header size, part count, nested message recursion and forwarded addresses, so a crafted message cannot exhaust memory or CPU.
 
 ## Installation
 
@@ -38,31 +37,36 @@ console.log(email.html);    // "<p>Welcome to postal-mime!</p>"
 npm install postal-mime
 ```
 
-## Requirements
-
-- Any modern browser, or
-- Node.js 18 or newer (the test suite runs on Node.js 20, 22, 24 and 26), or
-- Cloudflare Workers / Deno / Bun
-
-## How It Works
+## How it works
 
 ```mermaid
 flowchart LR
-    A[Raw Email<br/>RFC822] --> B[PostalMime.parse]
-    B --> C[Structured Email Object]
+    A[Raw email<br/>RFC 822] --> B[PostalMime.parse]
+    B --> C[Email object]
     C --> D[Headers]
-    C --> E[Text/HTML Content]
-    C --> F[Attachments]
-    C --> G[Recipients]
+    C --> E[Addresses]
+    C --> F[Text and HTML]
+    C --> G[Attachments]
 ```
 
-## Next Steps
+The whole message is read into memory and parsed in one pass into a tree of MIME parts. Text and HTML parts become the `text` and `html` bodies, every other part becomes an attachment, and inline forwarded messages are parsed recursively.
 
-- [Installation](./getting-started/installation) - Get postal-mime set up in your project
-- [Quick Start Guide](./getting-started/quick-start) - Parse your first email in minutes
-- [API Reference](./api/postal-mime) - Detailed API documentation
-- [Examples](./examples/basic-parsing) - Real-world usage examples
+## Where to go next
 
-## Related Projects
+- [Installation](./getting-started/installation) - Requirements and import paths for every runtime
+- [Quick Start](./getting-started/quick-start) - Parse a first message
+- [Parser Options](./api/options) - Every option and its default
+- [Email Object](./api/email) - Every property of the result
+- [Security](./guides/security) - Parsing untrusted mail
+- [Live Demo](/demo) - Parse a message in the browser
 
-postal-mime is developed by the makers of [EmailEngine](https://emailengine.app/) - a self-hosted email gateway that provides a REST API for IMAP and SMTP servers and sends webhooks whenever something changes in registered accounts.
+## Related projects
+
+postal-mime is developed by the makers of [EmailEngine](https://emailengine.app/), a self-hosted email gateway that provides a REST API for IMAP and SMTP servers and sends webhooks whenever something changes in registered accounts.
+
+## See Also
+
+- [GitHub repository](https://github.com/postalsys/postal-mime) - Source, issues and the CHANGELOG
+- [npm package](https://www.npmjs.com/package/postal-mime) - Published releases
+- [AI Agent Reference](./llm-context) - The whole API on one page
+- [Troubleshooting](./troubleshooting) - Common problems and fixes

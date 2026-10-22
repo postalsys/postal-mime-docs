@@ -1,14 +1,16 @@
 ---
-sidebar_position: 4
+title: Types
+sidebar_position: 6
+description: The TypeScript declarations postal-mime exports, how to import them in ES module and CommonJS projects, and how to narrow an Address.
 ---
 
 # Types
 
-<img src="/img/mascot/checklist.png" alt="postal-mime mascot with checklist" className="mascot-header" />
+postal-mime is written in TypeScript (since 4.0.0). The declarations are generated from the source during the build and ship next to both builds, `dist/esm/postal-mime.d.ts` and `dist/cjs/postal-mime.d.ts`, so no `@types` package is needed. TypeScript finds the right one through the package `exports` map.
 
-TypeScript type definitions for postal-mime. The library is written in TypeScript, and the declarations below are generated from the source during the build.
+This page lists the declarations. What each property means is documented on the [Email Object](./email), [Parser Options](./options) and [Errors](./errors) pages.
 
-## Importing Types
+## Importing types
 
 ```typescript
 import PostalMime, { addressParser, decodeWords } from 'postal-mime';
@@ -20,6 +22,7 @@ import type {
     Header,
     HeaderLine,
     Attachment,
+    AttachmentDisposition,
     AttachmentEncoding,
     PostalMimeOptions,
     AddressParserOptions,
@@ -29,26 +32,35 @@ import type {
 } from 'postal-mime';
 ```
 
-Every optional property is declared as `T | undefined`, so the types also work in projects that compile with `exactOptionalPropertyTypes`.
+In a CommonJS project, the declaration exports the class with `export =`, which is the shape `require()` returns. The types are members of the class namespace:
 
-## RawEmail
+```typescript
+import PostalMime = require('postal-mime');
 
-Input types accepted by `PostalMime.parse()`:
+const email: PostalMime.Email = await PostalMime.parse('Subject: Hello\n\nBody');
+const addresses: PostalMime.Address[] = PostalMime.addressParser('Name <name@example.com>');
+```
+
+With `esModuleInterop` enabled, `import PostalMime, { addressParser, decodeWords } from 'postal-mime'` works in a CommonJS project as well. A project that compiles with both `esModuleInterop` and `allowSyntheticDefaultImports` switched off has to use the `import ... = require()` form.
+
+## Declarations
+
+The public types are type aliases rather than interfaces, so a parsed message stays assignable to `Record<string, unknown>`. Every optional property is declared as `T | undefined`, so the types also work under `exactOptionalPropertyTypes`.
+
+### RawEmail
 
 ```typescript
 type RawEmail = string | ArrayBuffer | ArrayBufferView | Blob | ReadableStream<Uint8Array>;
 ```
 
-A Node.js `Buffer` is a `Uint8Array`, so it is covered by `ArrayBufferView` together with every other typed array and `DataView`. A `File` is a `Blob`. A stream is read to completion before parsing starts.
+See [Input types](./postal-mime#input-types).
 
-## PostalMimeOptions
-
-Configuration options for parsing:
+### PostalMimeOptions
 
 ```typescript
 type AttachmentEncoding = 'base64' | 'utf8' | 'arraybuffer';
 
-interface PostalMimeOptions {
+type PostalMimeOptions = {
     rfc822Attachments?: boolean | undefined;
     forceRfc822Attachments?: boolean | undefined;
     attachmentEncoding?: AttachmentEncoding | undefined;
@@ -57,168 +69,15 @@ interface PostalMimeOptions {
     maxPartCount?: number | undefined;
     maxRfc822NestingDepth?: number | undefined;
     maxForwardedAddresses?: number | undefined;
-}
+};
 ```
 
-### Properties
+See [Parser Options](./options).
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `rfc822Attachments` | `boolean` | `false` | Treat `message/rfc822` without Content-Disposition as attachments |
-| `forceRfc822Attachments` | `boolean` | `false` | Treat all `message/rfc822` as attachments |
-| `attachmentEncoding` | `AttachmentEncoding` | `'arraybuffer'` | Attachment content encoding |
-| `maxNestingDepth` | `number` | `256` | Maximum MIME nesting depth |
-| `maxHeadersSize` | `number` | `2097152` | Maximum total header size (bytes) |
-| `maxPartCount` | `number` | `10000` | Maximum number of MIME parts, the top-level part included |
-| `maxRfc822NestingDepth` | `number` | `10` | Maximum depth of inline `message/rfc822` parsing |
-| `maxForwardedAddresses` | `number` | `10000` | Maximum From, To, Cc and Bcc addresses across inline `message/rfc822` parts, counted across every level |
-
-See [Configuration](../getting-started/configuration) for the details of each option.
-
-## Header
-
-Individual email header:
+### Email
 
 ```typescript
-interface Header {
-    key: string;         // Lowercase header name
-    originalKey: string; // Original header name, preserving case
-    value: string;       // Header value, unfolded but not decoded
-}
-```
-
-### Example
-
-```typescript
-const contentType = email.headers.find(
-    (h: Header) => h.key === 'content-type'
-);
-```
-
-## HeaderLine
-
-Raw header line preserving original formatting:
-
-```typescript
-interface HeaderLine {
-    key: string;   // Lowercase header name
-    line: string;  // Complete raw header line (key + value, folded lines joined with newlines)
-}
-```
-
-`Header.value` is unfolded: the line break of a folded header is removed and the folding whitespace is kept. `HeaderLine.line` keeps the header name and the original line breaks of a folded header instead. Neither decodes encoded words.
-
-This is useful for:
-- DKIM signature verification
-- Passing headers to external decoders like `libmime.decodeHeader()`
-- Debugging email formatting issues
-
-### Example
-
-```typescript
-const email = await PostalMime.parse(rawEmail);
-
-// headers[].value is unfolded but encoded words are NOT decoded
-const subjectHeader = email.headers.find(h => h.key === 'subject');
-console.log(subjectHeader.value); // "=?UTF-8?B?SGVsbG8=?= World" (encoded words preserved)
-
-// email.subject IS decoded (postal-mime decodes specific properties automatically)
-console.log(email.subject); // "Hello World"
-
-// Use decodeWords() to decode header values manually:
-// import { decodeWords } from 'postal-mime';
-// console.log(decodeWords(subjectHeader.value)); // "Hello World"
-
-// headerLines preserves the complete raw format including folding
-const subjectLine = email.headerLines.find(h => h.key === 'subject');
-console.log(subjectLine.line); // "Subject: =?UTF-8?B?SGVsbG8=?= World"
-```
-
-## Address
-
-Union type for email addresses (can be individual or group):
-
-```typescript
-type Address = Mailbox | AddressGroup;
-```
-
-## Mailbox
-
-Individual email address:
-
-```typescript
-interface Mailbox {
-    name: string;        // Display name (empty string if none)
-    address: string;     // Email address
-    group?: undefined;   // Explicitly undefined (for type narrowing)
-}
-```
-
-## AddressGroup
-
-An RFC 5322 address group such as `Team: a@example.com, b@example.com;`:
-
-```typescript
-interface AddressGroup {
-    name: string;         // Group name
-    address?: undefined;  // Explicitly undefined (for type narrowing)
-    group: Mailbox[];     // Members of the group, never nested
-}
-```
-
-### Type Guard Example
-
-```typescript
-function isMailbox(addr: Address): addr is Mailbox {
-    return addr.group === undefined;
-}
-
-// Usage
-if (email.from && isMailbox(email.from)) {
-    console.log(email.from.address); // TypeScript knows this is Mailbox
-}
-```
-
-## Attachment
-
-Email attachment:
-
-```typescript
-interface Attachment {
-    filename: string | null;
-    mimeType: string;
-    disposition: 'attachment' | 'inline' | null;
-    related?: boolean | undefined;
-    description?: string | undefined;
-    contentId?: string | undefined;
-    method?: string | undefined;
-    rfc822DepthExceeded?: boolean | undefined;
-    content: ArrayBuffer | Uint8Array | string;
-    encoding?: 'base64' | 'utf8' | undefined;
-}
-```
-
-### Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `filename` | `string \| null` | Decoded filename, or `null` if the part did not name one |
-| `mimeType` | `string` | Lowercase MIME type |
-| `disposition` | `'attachment' \| 'inline' \| null` | Content-Disposition value, or `null` if there was none |
-| `related` | `boolean` | `true` for a part with a Content-ID inside a `multipart/related` tree, such as an inline image |
-| `description` | `string` | Decoded Content-Description header |
-| `contentId` | `string` | Content-ID header, angle brackets included |
-| `method` | `string` | Uppercased calendar method (for `text/calendar` and `application/ics`) |
-| `rfc822DepthExceeded` | `boolean` | `true` for a `message/rfc822` part that hit `maxRfc822NestingDepth` and was not parsed |
-| `content` | `ArrayBuffer \| Uint8Array \| string` | The decoded bytes of the part exactly as sent: `ArrayBuffer` by default, `Uint8Array` for calendar parts (normalized to UTF-8 with LF line endings), a string with the `base64` and `utf8` encodings |
-| `encoding` | `'base64' \| 'utf8'` | Set when `content` is a string |
-
-## Email
-
-Complete parsed email:
-
-```typescript
-interface Email {
+type Email = {
     headers: Header[];
     headerLines: HeaderLine[];
     from?: Address | undefined;
@@ -237,45 +96,76 @@ interface Email {
     html?: string | undefined;
     text?: string | undefined;
     attachments: Attachment[];
-}
+};
 ```
 
-### Property Details
+See [Email Object](./email#properties).
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `headers` | `Header[]` | Every header in message order, duplicates included (values unfolded, not decoded) |
-| `headerLines` | `HeaderLine[]` | Raw header lines, in the same order as `headers` |
-| `from` | `Address` | From address (first occurrence) |
-| `sender` | `Address` | Sender address (first occurrence) |
-| `replyTo` | `Address[]` | Reply-To addresses |
-| `deliveredTo` | `string` | Delivered-To address |
-| `returnPath` | `string` | Return-Path address |
-| `to` | `Address[]` | To addresses |
-| `cc` | `Address[]` | CC addresses |
-| `bcc` | `Address[]` | BCC addresses |
-| `subject` | `string` | Subject line (decoded) |
-| `messageId` | `string` | Message-ID |
-| `inReplyTo` | `string` | In-Reply-To |
-| `references` | `string` | References |
-| `date` | `string` | Date (ISO 8601, or the raw header value if it does not parse as a date) |
-| `html` | `string` | HTML content, CRLF line endings normalized to LF |
-| `text` | `string` | Plain text content, CRLF line endings normalized to LF |
-| `attachments` | `Attachment[]` | Attachments |
-
-## AddressParserOptions
-
-Options for `addressParser()`:
+### Header and HeaderLine
 
 ```typescript
-interface AddressParserOptions {
-    flatten?: boolean | undefined;
-}
+type Header = {
+    key: string;
+    originalKey: string;
+    value: string;
+};
+
+type HeaderLine = {
+    key: string;
+    line: string;
+};
 ```
 
-## PostalMimeError
+See [Header object](./email#header-object) and [HeaderLine object](./email#headerline-object).
 
-The errors the parser throws. See [Errors](./errors) for what each code means.
+### Address, Mailbox and AddressGroup
+
+```typescript
+type Mailbox = {
+    name: string;
+    address: string;
+    group?: undefined;
+};
+
+type AddressGroup = {
+    name: string;
+    address?: undefined;
+    group: Mailbox[];
+};
+
+type Address = Mailbox | AddressGroup;
+
+type AddressParserOptions = {
+    flatten?: boolean | undefined;
+};
+```
+
+See [Addresses](./email#addresses) and [addressParser()](./address-parser).
+
+### Attachment
+
+```typescript
+type AttachmentDisposition = 'attachment' | 'inline' | (string & {});
+
+type Attachment = {
+    filename: string | null;
+    mimeType: string;
+    disposition: AttachmentDisposition | null;
+    related?: boolean | undefined;
+    description?: string | undefined;
+    contentId?: string | undefined;
+    method?: string | undefined;
+    rfc822DepthExceeded?: boolean | undefined;
+    content: ArrayBuffer | Uint8Array | string;
+    encoding?: 'base64' | 'utf8' | undefined;
+};
+```
+
+`AttachmentDisposition` accepts any string, because the Content-Disposition token of a message is passed through as it is. The two common values are spelled out for editor completion. Before 4.0.0, `disposition` was typed as `'attachment' | 'inline' | null`.
+
+See [Attachment object](./email#attachment-object).
+
+### PostalMimeError and ErrorCode
 
 ```typescript
 type ErrorCode =
@@ -292,114 +182,51 @@ interface PostalMimeError extends Error {
 }
 ```
 
-A caught value is `unknown`, so narrow it before reading the code:
+See [Errors](./errors) for what each code means and how to narrow a caught value.
 
-```typescript
-try {
-    await PostalMime.parse(rawEmail);
-} catch (error) {
-    const code = (error as Partial<PostalMimeError>).code;
-    if (code === 'EMAXHEADERSIZE') {
-        // ...
-    }
-}
-```
+## Narrowing an Address
 
-## Complete Example
+A mailbox has no `group` and a group has no `address`, so either property narrows the union:
 
 ```typescript
 import PostalMime from 'postal-mime';
-import type {
-    Email,
-    Address,
-    Mailbox,
-    Attachment,
-    PostalMimeOptions
-} from 'postal-mime';
+import type { Address, Mailbox } from 'postal-mime';
 
-// Type guard for mailbox
 function isMailbox(addr: Address): addr is Mailbox {
     return addr.group === undefined;
 }
 
-// Parse with options
-const options: PostalMimeOptions = {
-    attachmentEncoding: 'base64',
-    maxNestingDepth: 50
-};
+const email = await PostalMime.parse('From: Team: a@example.com, b@example.com;\n\nBody');
 
-async function processEmail(rawEmail: string): Promise<void> {
-    const email: Email = await PostalMime.parse(rawEmail, options);
-
-    // Access from address
-    if (email.from) {
-        if (isMailbox(email.from)) {
-            console.log(`From: ${email.from.address}`);
-        } else {
-            console.log(`From group: ${email.from.name}`);
-        }
-    }
-
-    // Access recipients
-    email.to?.forEach((recipient: Address) => {
-        if (isMailbox(recipient)) {
-            console.log(`To: ${recipient.address}`);
-        }
-    });
-
-    // Access subject
-    const subject: string | undefined = email.subject;
-
-    // Access attachments
-    email.attachments.forEach((att: Attachment) => {
-        console.log(`Attachment: ${att.filename}`);
-
-        if (att.encoding === 'base64') {
-            const base64Content: string = att.content as string;
-        } else {
-            const binaryContent: ArrayBuffer = att.content as ArrayBuffer;
-        }
-    });
+if (email.from && isMailbox(email.from)) {
+    console.log(email.from.address);
+} else if (email.from) {
+    console.log(email.from.group.map(member => member.address)); // [ 'a@example.com', 'b@example.com' ]
 }
 ```
 
-## Using with Cloudflare Workers
+## Narrowing attachment content
+
+`content` is a union. Check the `encoding` property, which is set exactly when `content` is a string:
 
 ```typescript
-import PostalMime from 'postal-mime';
-import type { Email } from 'postal-mime';
+import type { Attachment } from 'postal-mime';
 
-interface Env {
-    MY_KV: KVNamespace;
-}
-
-export default {
-    async email(
-        message: ForwardableEmailMessage,
-        env: Env,
-        ctx: ExecutionContext
-    ): Promise<void> {
-        const email: Email = await PostalMime.parse(message.raw);
-
-        // Type-safe access
-        const subject: string = email.subject ?? '(no subject)';
-        const fromAddress: string = email.from?.address ?? 'unknown';
-
-        await env.MY_KV.put(`email:${Date.now()}`, JSON.stringify({
-            from: fromAddress,
-            subject
-        }));
+function contentBytes(att: Attachment): Uint8Array {
+    if (typeof att.content === 'string') {
+        // att.encoding is 'base64' or 'utf8'
+        return att.encoding === 'base64'
+            ? Uint8Array.from(atob(att.content), c => c.charCodeAt(0))
+            : new TextEncoder().encode(att.content);
     }
-};
+    // ArrayBuffer by default, Uint8Array for calendar parts
+    return att.content instanceof Uint8Array ? att.content : new Uint8Array(att.content);
+}
 ```
-
-## Declaration File Location
-
-The declarations are generated from the TypeScript source and shipped next to each build: `dist/esm/postal-mime.d.ts` for the ES module build and `dist/cjs/postal-mime.d.ts` for the CommonJS build. TypeScript picks the right one through the package `exports` map, so nothing needs to be configured.
 
 ## See Also
 
-- [PostalMime](./postal-mime) - Main parsing class
-- [addressParser()](./address-parser) - Address parsing utility
-- [decodeWords()](./decode-words) - MIME decoding utility
-- [Errors](./errors) - Error codes
+- [Email Object](./email) - What each property of `Email` and `Attachment` holds
+- [Parser Options](./options) - What each option does
+- [Errors](./errors) - Error codes and narrowing a caught error
+- [Upgrading](../getting-started/upgrading) - Type changes in 4.0.0

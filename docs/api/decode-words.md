@@ -1,18 +1,20 @@
 ---
-sidebar_position: 3
+title: decodeWords()
+sidebar_position: 5
+description: Reference for decodeWords(), which decodes RFC 2047 encoded words in header values, and the list of charsets postal-mime supports.
 ---
 
 # decodeWords()
 
 <img src="/img/mascot/funnel.png" alt="postal-mime mascot decoding" className="mascot-header" />
 
-Utility function for decoding MIME encoded-words in email headers.
-
-## Import
+`decodeWords()` decodes RFC 2047 encoded words, the `=?charset?encoding?text?=` sequences that carry non-ASCII text in email headers. It is exported since 2.2.4.
 
 ```javascript
 import { decodeWords } from 'postal-mime';
 ```
+
+You rarely need to call it yourself: `PostalMime.parse()` decodes `subject`, `messageId`, `inReplyTo` and `references`, and [`addressParser()`](./address-parser) decodes display names. Use it for a value from [`headers`](./email#header-object), which is not decoded, or for header text from another source.
 
 ## Syntax
 
@@ -20,182 +22,88 @@ import { decodeWords } from 'postal-mime';
 decodeWords(encodedStr) -> string
 ```
 
-## Parameters
+### Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `encodedStr` | `string` | Yes | String that may contain MIME encoded-words |
+| `encodedStr` | `string` | Yes | Text that may contain encoded words |
 
-## Returns
+### Return value
 
-`string` - A Unicode string with all encoded-words decoded.
+The text with every encoded word decoded. Text outside encoded words, and anything that is not a valid encoded word, is returned unchanged. The function does not throw.
 
-## About Encoded-Words
+## Encoded word format
 
-MIME encoded-words are used in email headers to represent non-ASCII characters. They follow the format:
-
-```
-=?charset?encoding?encoded_text?=
+```text
+=?charset?encoding?encoded-text?=
 ```
 
-Where:
-- `charset` - Character set (e.g., `UTF-8`, `ISO-8859-1`)
-- `encoding` - Either `B` (Base64) or `Q` (Quoted-Printable)
-- `encoded_text` - The encoded content
+- `charset` is a charset label, such as `UTF-8` or `ISO-8859-1`. An RFC 2231 language suffix (`UTF-8*en`) is accepted and ignored
+- `encoding` is `B` (base64) or `Q` (a quoted-printable variant where `_` stands for a space), in either case
+- `encoded-text` is the encoded bytes
 
 ## Examples
 
-### Base64 Encoding (B)
+```javascript
+import { decodeWords } from 'postal-mime';
+
+console.log(decodeWords('=?UTF-8?B?SGVsbG8gV29ybGQ=?='));                    // "Hello World"
+console.log(decodeWords('=?UTF-8?Q?Hello_World?='));                         // "Hello World"
+console.log(decodeWords('=?ISO-8859-1?Q?caf=E9?='));                         // "café"
+console.log(decodeWords('Hello, =?utf-8?B?44Ko44Od44K544Kr44O844OJ?='));      // "Hello, エポスカード"
+console.log(decodeWords('=?UTF-8?B?UmU6IOmHjeimgQ==?='));                    // "Re: 重要"
+console.log(decodeWords('=?UTF-8*en-US?B?SGVsbG8=?='));                       // "Hello"
+console.log(decodeWords('Regular text without encoding'));                   // "Regular text without encoding"
+console.log(decodeWords(''));                                                // ""
+```
+
+### Adjacent encoded words
+
+Whitespace between two encoded words is not part of the text (RFC 2047 section 6.2), so adjacent words are joined without it:
 
 ```javascript
 import { decodeWords } from 'postal-mime';
 
-const encoded = '=?UTF-8?B?SGVsbG8gV29ybGQ=?=';
-const decoded = decodeWords(encoded);
-console.log(decoded); // "Hello World"
+console.log(decodeWords('=?UTF-8?B?SGVsbG8=?= =?UTF-8?B?V29ybGQ=?=')); // "HelloWorld"
 ```
 
-### Quoted-Printable Encoding (Q)
+### Invalid encoded words
 
-```javascript
-const encoded = '=?UTF-8?Q?Hello_World?=';
-const decoded = decodeWords(encoded);
-console.log(decoded); // "Hello World"
-```
-
-### Japanese Text
-
-```javascript
-const encoded = '=?utf-8?B?44GT44KT44Gr44Gh44Gv?=';
-const decoded = decodeWords(encoded);
-console.log(decoded); // "こんにちは"
-```
-
-### Mixed Content
-
-Encoded-words can appear within regular text:
-
-```javascript
-const encoded = 'Hello, =?utf-8?B?44Ko44Od44K544Kr44O844OJ?=';
-const decoded = decodeWords(encoded);
-console.log(decoded); // "Hello, エポスカード"
-```
-
-### Multiple Encoded-Words
-
-Adjacent encoded-words are properly joined:
-
-```javascript
-const encoded = '=?UTF-8?B?SGVsbG8=?= =?UTF-8?B?V29ybGQ=?=';
-const decoded = decodeWords(encoded);
-console.log(decoded); // "HelloWorld"
-```
-
-### ISO-8859-1 Charset
-
-```javascript
-const encoded = '=?ISO-8859-1?Q?caf=E9?=';
-const decoded = decodeWords(encoded);
-console.log(decoded); // "café"
-```
-
-## Common Use Cases
-
-### Decoding Subject Lines
+An encoded word with an unknown encoding is left as it is:
 
 ```javascript
 import { decodeWords } from 'postal-mime';
 
-function getDecodedSubject(rawSubject) {
-    return decodeWords(rawSubject);
-}
-
-const subject = getDecodedSubject('=?UTF-8?B?UmU6IOmHjeimgQ==?=');
-console.log(subject); // Decoded subject
+console.log(decodeWords('=?UTF-8?X?invalid?=')); // "=?UTF-8?X?invalid?="
 ```
 
-### Processing Custom Headers
+## Supported charsets
 
-```javascript
-// When you need to decode a header not automatically processed
-const customHeader = email.headers.find(h => h.key === 'x-custom');
-if (customHeader) {
-    const decodedValue = decodeWords(customHeader.value);
-    console.log(decodedValue);
-}
-```
+The same charset handling applies to encoded words, to text and HTML bodies, and to RFC 2231 encoded parameters such as file names.
 
-### Manual Address Decoding
+Decoding is done with the runtime's `TextDecoder`, so every label of the [WHATWG Encoding Standard](https://encoding.spec.whatwg.org/#names-and-labels) is supported: UTF-8, UTF-16LE and UTF-16BE, the ISO-8859 family, windows-1250 through windows-1258, KOI8-R and KOI8-U, macintosh, GBK and GB18030, Big5, Shift_JIS, EUC-JP, ISO-2022-JP and EUC-KR, among others. A runtime built without some of these encodings, such as Node.js with small ICU, treats their labels as unknown.
 
-Note: `addressParser()` already calls `decodeWords()` internally, but you can use it directly:
-
-```javascript
-const rawName = '=?UTF-8?B?Sm9obiBEb2U=?=';
-const decodedName = decodeWords(rawName);
-console.log(decodedName); // "John Doe"
-```
-
-## Supported Charsets
-
-Decoding is done with the runtime's `TextDecoder`, so every label of the [WHATWG Encoding Standard](https://encoding.spec.whatwg.org/#names-and-labels) is supported: UTF-8, UTF-16LE and UTF-16BE, the ISO-8859 family, windows-1250 through windows-1258, KOI8-R and KOI8-U, macintosh, GBK and GB18030, Big5, Shift_JIS, EUC-JP, ISO-2022-JP and EUC-KR, among others.
-
-On top of those, labels that mail clients use but the standard does not list are mapped to the matching decoder:
+On top of those, labels that mail clients use but the standard does not list are mapped to the matching decoder (since 3.0.0):
 
 - `x-` and `cs` prefixes and stray separators, so `x-big5` or `iso_8859_2` resolve
 - Windows and IBM code page numbers: `cp932`, `windows-932`, `ms932` and `ibm932` for Shift_JIS, and the same forms of 936 (GBK), 949 (EUC-KR), 950 (Big5), 874 (windows-874), 51932 (EUC-JP) and 50220 to 50222 (ISO-2022-JP)
 - `iso-8859-8-i` and `iso-8859-8-e` as ISO-8859-8
-- `shiftjis`, `windows-31j` and `ms_kanji` as Shift_JIS; `eucjp` and `x-euc-jp` as EUC-JP; `euckr` and `uhc` as EUC-KR
+- `shiftjis`, `windows-31j` and `ms_kanji` as Shift_JIS; `eucjp` as EUC-JP; `euckr` and `uhc` as EUC-KR
 - `iso-2022-jp-1`, `iso-2022-jp-2` and `junet` as ISO-2022-JP
 - `tis-620` as windows-874
 
-## Behavior Notes
+### Special cases
 
-### RFC 2231 Language Tags
-
-RFC 2231 allows language tags in encoded-words (e.g., `=?UTF-8*en?B?...?=`). postal-mime silently strips these language tags during decoding:
-
-```javascript
-// Language tag is ignored, only charset is used
-const encoded = '=?UTF-8*en-US?B?SGVsbG8=?=';
-const decoded = decodeWords(encoded);
-console.log(decoded); // "Hello"
-```
-
-### Unknown Charsets
-
-If an encoded-word uses a charset label that cannot be resolved to a decoder, the bytes are decoded as UTF-8 when they are valid UTF-8 and as `windows-1252` otherwise, so a mislabelled UTF-8 word still comes out right:
+- **Unknown labels.** Text in a charset label that cannot be resolved is decoded as UTF-8 when its bytes are valid UTF-8, and as windows-1252 otherwise (since 4.0.5). A part without a charset is read the same way.
+- **The replacement encoding.** ISO-2022-KR, ISO-2022-CN and HZ-GB-2312 decode to a single U+FFFD replacement character, as they do in a browser (since 4.1.1). Their shift sequences let the same bytes read as text to one decoder and as markup to another.
+- **UTF-16 byte order marks.** A byte order mark decides the byte order only under a label that leaves it open: `utf-16`, `ucs-2`, `unicode`, `csunicode` and `iso-10646-ucs-2` (since 4.1.3). `utf-16le` and `utf-16be` are read in the order they name, whatever mark the bytes carry.
+- **Wrong labels.** A declared charset is followed even when the bytes are not valid in it, so a message that declares the wrong charset decodes to the wrong text or to replacement characters.
 
 ```javascript
-const encoded = '=?UNKNOWN-CHARSET?B?SGVsbG8=?=';
-const decoded = decodeWords(encoded);
-console.log(decoded); // "Hello"
-```
+import { decodeWords } from 'postal-mime';
 
-### Malformed Encoded-Words
-
-Invalid encoded-words are returned as-is:
-
-```javascript
-const malformed = '=?UTF-8?X?invalid?='; // Invalid encoding 'X'
-const result = decodeWords(malformed);
-// Returns original string unchanged
-```
-
-### Empty Input
-
-```javascript
-const decoded = decodeWords('');
-console.log(decoded); // ""
-```
-
-### Plain Text (No Encoding)
-
-Strings without encoded-words pass through unchanged:
-
-```javascript
-const plain = 'Regular text without encoding';
-const decoded = decodeWords(plain);
-console.log(decoded); // "Regular text without encoding"
+console.log(decodeWords('=?x-unknown?B?Y2Fmw6k=?=')); // "café", the bytes are valid UTF-8
+console.log(decodeWords('=?x-unknown?B?Y2Fm6Q==?='));  // "café", read as windows-1252
 ```
 
 ## TypeScript
@@ -203,25 +111,12 @@ console.log(decoded); // "Regular text without encoding"
 ```typescript
 import { decodeWords } from 'postal-mime';
 
-const encoded: string = '=?UTF-8?B?SGVsbG8=?=';
-const decoded: string = decodeWords(encoded);
+const decoded: string = decodeWords('=?UTF-8?B?SGVsbG8=?=');
 ```
-
-## When to Use
-
-In most cases, you don't need to call `decodeWords()` directly because:
-
-- `PostalMime.parse()` automatically decodes subjects and other headers
-- `addressParser()` automatically decodes display names
-
-Use `decodeWords()` when:
-
-1. Processing custom headers not handled by PostalMime
-2. Working with raw header values from the `headers` array
-3. Decoding encoded content from other sources
 
 ## See Also
 
-- [PostalMime](./postal-mime) - Main parsing class (automatically decodes headers)
-- [addressParser()](./address-parser) - Parse addresses (automatically decodes names)
-- [Types](./types) - TypeScript type definitions
+- [Email Object](./email#header-object) - Which header values are decoded and which are not
+- [addressParser()](./address-parser) - Parses address headers, decoding display names
+- [Parsing Emails](../guides/parsing-emails#character-encoding) - Charset handling in message bodies
+- [Troubleshooting](../troubleshooting#text-content-has-strange-characters) - Garbled text

@@ -1,380 +1,285 @@
 ---
+title: Parsing Emails
 sidebar_position: 1
+description: How to feed messages to postal-mime from strings, files, uploads, fetch and streams, and how to read headers, addresses, bodies, nested messages and charsets.
 ---
 
 # Parsing Emails
 
 <img src="/img/mascot/parsing.png" alt="postal-mime mascot parsing" className="mascot-header" />
 
-This guide covers the fundamentals of email parsing with postal-mime, including handling different email formats and structures.
+This guide covers the common parsing tasks. The exact behavior of every property is documented on the [Email Object](../api/email) page.
 
-## Understanding Email Structure
+## Message structure
 
-An RFC822 email consists of headers and a body, separated by a blank line:
+An RFC 822 message is a block of headers, a blank line, and a body. In a MIME message, the body can be split into parts, each with headers of its own:
 
+```text
+From: alice@example.com
+Subject: Example
+Content-Type: multipart/alternative; boundary="b"
+
+--b
+Content-Type: text/plain
+
+Plain text version
+--b
+Content-Type: text/html
+
+<p>HTML version</p>
+--b--
 ```
-Header-Name: Header Value
-Another-Header: Another Value
 
-This is the email body.
-```
+postal-mime reads this into a tree of parts, then turns the text parts into `text` and `html` and every other part into an entry of `attachments`.
 
-## Basic Parsing
+## Choosing an entry point
 
-### Static Method (Recommended)
-
-The simplest approach uses the static `parse` method:
+`PostalMime.parse()` creates a parser, parses one message and returns the result:
 
 ```javascript
 import PostalMime from 'postal-mime';
 
-const email = await PostalMime.parse(rawEmailData);
+const email = await PostalMime.parse('Subject: Hello\n\nBody');
 ```
 
-### Instance Method
-
-You can also create an instance for parsing:
+A parser instance does the same in two steps, and parses a single message:
 
 ```javascript
-const parser = new PostalMime();
-const email = await parser.parse(rawEmailData);
+import PostalMime from 'postal-mime';
+
+const parser = new PostalMime({ attachmentEncoding: 'base64' });
+const email = await parser.parse('Subject: Hello\n\nBody');
 ```
 
-:::caution
-Parser instances cannot be reused. Create a new instance for each email you parse.
-:::
+Calling `parse()` again on the same instance rejects with `EPARSERREUSED`. See [PostalMime](../api/postal-mime).
 
-## Parsing Different Input Types
+## Reading messages from different sources
 
-postal-mime accepts various input formats:
+The parser accepts a string, an `ArrayBuffer`, any `ArrayBufferView` (a `Uint8Array`, a Node.js `Buffer`, a `DataView`), a `Blob` or `File`, and a `ReadableStream`. Pass bytes whenever you have them: a message is bytes, and decoding it to a string first breaks 8-bit text that is not UTF-8.
 
-### String Input
+### A file in Node.js
 
 ```javascript
-const rawEmail = `From: sender@example.com
-To: recipient@example.com
-Subject: Test Email
+import PostalMime from 'postal-mime';
+import { readFile } from 'node:fs/promises';
 
-Hello, World!`;
-
-const email = await PostalMime.parse(rawEmail);
+const email = await PostalMime.parse(await readFile('message.eml'));
 ```
 
-### ArrayBuffer / Uint8Array
+### A fetch response
 
 ```javascript
-// From file upload or fetch response
-const response = await fetch('/path/to/email.eml');
-const arrayBuffer = await response.arrayBuffer();
-const email = await PostalMime.parse(arrayBuffer);
+import PostalMime from 'postal-mime';
+
+const response = await fetch('https://example.com/message.eml');
+
+// Either read the body into memory first
+const email = await PostalMime.parse(await response.arrayBuffer());
+
+// or pass the stream, which the parser reads to the end before parsing
+// const email = await PostalMime.parse(response.body);
 ```
 
-### Blob (Browser)
+Passing a stream is a convenience, not a way to bound memory: the whole message is held in memory while it is parsed. Limit the size of untrusted input before it reaches the parser.
+
+### A file upload in the browser
+
+A `File` from an `<input type="file">` or a drop event is a `Blob`, and can be passed as it is:
 
 ```javascript
-// From file input
-const fileInput = document.querySelector('input[type="file"]');
-const file = fileInput.files[0];
-const email = await PostalMime.parse(file);
-```
+import PostalMime from 'postal-mime';
 
-### Node.js Buffer
-
-```javascript
-import { readFile } from 'fs/promises';
-
-const buffer = await readFile('email.eml');
-const email = await PostalMime.parse(buffer);
-```
-
-### ReadableStream
-
-```javascript
-const response = await fetch('/path/to/email.eml');
-const email = await PostalMime.parse(response.body);
-```
-
-The stream is read to completion before parsing starts, so this is a convenience for stream shaped inputs rather than a way to bound memory: the whole message is held in memory while it is parsed.
-
-```javascript
-// Fetch and parse in one step using the stream directly
-const response = await fetch('https://example.com/email.eml');
-const email = await PostalMime.parse(response.body);
-
-console.log(email.subject);
-```
-
-## Working with Headers
-
-### All Headers
-
-Access the complete list of headers:
-
-```javascript
-email.headers.forEach(header => {
-    console.log(`${header.key}: ${header.value}`);
-});
-```
-
-### Finding Specific Headers
-
-```javascript
-const contentType = email.headers.find(h => h.key === 'content-type');
-console.log(contentType?.value);
-```
-
-### Custom Headers
-
-X-headers and other custom headers are available:
-
-```javascript
-const xMailer = email.headers.find(h => h.key === 'x-mailer');
-console.log(xMailer?.value);
-```
-
-### Duplicate and Folded Headers
-
-`headers` lists every header in message order, duplicates included. A `value` is unfolded per RFC 5322: the line break of a folded header is removed and the folding whitespace is kept, so `Subject: Hello\r\n    World` reads as `Hello    World`. Encoded words are left as they are; use [`decodeWords()`](../api/decode-words) to decode them. The original lines, folds included, are available in `headerLines`.
-
-Where a header is exposed as a single property, such as `subject`, `from` or `messageId`, the first occurrence wins. The address lists `to`, `cc`, `bcc` and `replyTo` collect every occurrence in message order.
-
-```javascript
-// Subject: first
-// Subject: second
-console.log(email.subject); // "first"
-console.log(email.headers.filter(h => h.key === 'subject').length); // 2
-```
-
-## Understanding Address Fields
-
-Address fields like `from`, `to`, `cc` return structured objects:
-
-```javascript
-// Single address
-console.log(email.from);
-// { name: "John Doe", address: "john@example.com" }
-
-// Multiple recipients
-console.log(email.to);
-// [
-//   { name: "Alice", address: "alice@example.com" },
-//   { name: "Bob", address: "bob@example.com" }
-// ]
-```
-
-### Address Groups
-
-Email addresses can be grouped:
-
-```javascript
-// Parsing "Team: alice@example.com, bob@example.com;"
-const addresses = email.to;
-
-addresses.forEach(addr => {
-    if (addr.group) {
-        console.log(`Group: ${addr.name}`);
-        addr.group.forEach(member => {
-            console.log(`  - ${member.address}`);
-        });
-    } else {
-        console.log(`Individual: ${addr.address}`);
+document.querySelector('input[type="file"]').addEventListener('change', async event => {
+    const file = event.target.files[0];
+    if (file) {
+        const email = await PostalMime.parse(file);
+        console.log(email.subject);
     }
 });
 ```
 
-## Text and HTML Content
+## Headers
 
-`text` and `html` have their CRLF line endings normalized to LF, whatever transfer encoding the part was sent in.
-
-### Format=Flowed Text
-
-postal-mime automatically handles RFC 3676 `format=flowed` text, which is used by some email clients to enable soft line wrapping. Lines ending with a trailing space are "soft" line breaks and get joined with the next line. Quoted paragraphs are unfolded the same way: the quote marks are counted and removed before the lines are joined, so `> one ` followed by `> two` reads `> one two`, and a change of quote depth or a signature separator ends the paragraph:
+`headers` lists every header of the message in order, duplicates included. Keys are lowercase and values are unfolded but not decoded:
 
 ```javascript
-const rawEmail = `Content-Type: text/plain; charset=utf-8; format=flowed
+import PostalMime from 'postal-mime';
+import { decodeWords } from 'postal-mime';
 
-This is a long paragraph that has been \r
-soft-wrapped by the email client into \r
-multiple lines.\r
-\r
-This is a new paragraph.\r
--- \r
-My Signature`;
+const email = await PostalMime.parse(`X-Mailer: Example Mailer 1.0
+X-Note: =?UTF-8?Q?Caf=C3=A9?=
+Subject: Hello
 
-const email = await PostalMime.parse(rawEmail);
-console.log(email.text);
-// "This is a long paragraph that has been soft-wrapped by the email client into multiple lines.
-//
-// This is a new paragraph.
-// --
-// My Signature"
+Body`);
+
+const mailer = email.headers.find(h => h.key === 'x-mailer');
+console.log(mailer.value); // "Example Mailer 1.0"
+
+const note = email.headers.find(h => h.key === 'x-note');
+console.log(decodeWords(note.value)); // "Café"
 ```
 
-Note that the signature separator (`"-- "`) is preserved as a line break even though it ends with a space (per RFC 3676 Section 4.3).
+Where a header occurs more than once, the single-value properties such as `subject` and `from` use the first occurrence, and the address lists collect every occurrence. `headerLines` holds the raw lines, folds included. See [Header object](../api/email#header-object).
 
-When `delsp=yes` is set in the Content-Type, the trailing space used for folding is removed during unwrapping, allowing languages without word separators (like Japanese) to be soft-wrapped correctly.
+## Addresses
 
-### Multipart/Digest Handling
-
-Per RFC 2046, parts inside `multipart/digest` messages default to `message/rfc822` content type instead of `text/plain`. postal-mime handles this automatically:
+`from` and `sender` are a single address, `to`, `cc`, `bcc` and `replyTo` are arrays. An address is either a mailbox with `name` and `address`, or a group with `name` and a `group` array of mailboxes:
 
 ```javascript
-// Digest messages contain multiple forwarded emails
-const email = await PostalMime.parse(digestEmail);
-// Each part is correctly treated as message/rfc822
+import PostalMime from 'postal-mime';
+
+const email = await PostalMime.parse(`From: John Doe <john@example.com>
+To: Alice <alice@example.com>, Team: bob@example.com, carol@example.com;
+
+Body`);
+
+console.log(email.from); // { address: 'john@example.com', name: 'John Doe' }
+
+for (const addr of email.to) {
+    if (addr.group) {
+        console.log(`Group ${addr.name}:`, addr.group.map(m => m.address).join(', '));
+    } else {
+        console.log(`${addr.name} <${addr.address}>`);
+    }
+}
+// Alice <alice@example.com>
+// Group Team: bob@example.com, carol@example.com
 ```
 
-### Multipart/Alternative Handling
+Use [`addressParser()`](../api/address-parser) to parse address headers that are not exposed as properties, such as `Resent-To`.
 
-When an email has both text and HTML versions, both are available:
+## Text and HTML
+
+`text` and `html` are built from the inline text parts. A message with both a plain text and an HTML part, usually in a `multipart/alternative`, has both; a message with only one kind has only that property:
 
 ```javascript
-console.log(email.text); // Plain text version
-console.log(email.html); // HTML version
+import PostalMime from 'postal-mime';
+
+const email = await PostalMime.parse(`Content-Type: multipart/alternative; boundary="b"
+
+--b
+Content-Type: text/plain
+
+Plain text version
+--b
+Content-Type: text/html
+
+<p>HTML version</p>
+--b--
+`);
+
+console.log(email.text); // "Plain text version"
+console.log(email.html); // "<p>HTML version</p>"
 ```
 
-### Content Availability
+Line endings are normalized to LF. When parts of different types are mixed, such as in a `multipart/mixed` with one plain and one HTML part, each part is converted so that both `text` and `html` hold the whole body. See [Text and HTML](../api/email#text-and-html) for the full rules.
 
-For single-part emails, only the format present in the message is returned:
+### format=flowed
 
-```javascript
-// Email with only HTML content
-const htmlOnlyEmail = await PostalMime.parse(htmlEmail);
-console.log(htmlOnlyEmail.html); // Original HTML
-console.log(htmlOnlyEmail.text); // undefined
-
-// Email with only text content
-const textOnlyEmail = await PostalMime.parse(textEmail);
-console.log(textOnlyEmail.text); // Original text
-console.log(textOnlyEmail.html); // undefined
-```
-
-### Automatic Conversion in Multipart
-
-When a `multipart/mixed` message contains both `text/plain` and `text/html` parts, postal-mime makes both formats available. If one part of the tree only provides one format while other parts provide the other, postal-mime converts the available format to fill in the gap:
+Text with `format=flowed` (RFC 3676) is unfolded: a line that ends with a space continues on the next one. Quoted paragraphs are unfolded the same way, a change of quote depth ends a paragraph, and the `-- ` signature separator is kept as it is. With `delsp=yes`, the space before the soft break is removed, which is how text in languages without word spaces is folded.
 
 ```javascript
-// multipart/alternative with both formats, both are directly available
-const email = await PostalMime.parse(multipartAlternativeEmail);
-console.log(email.text); // Plain text version
-console.log(email.html); // HTML version
+import PostalMime from 'postal-mime';
 
-// multipart/mixed with text/plain and text/html parts
-// Both types are available, with cross-conversion where needed
-const mixedEmail = await PostalMime.parse(multipartMixedEmail);
-console.log(mixedEmail.text); // Includes htmlToText() conversion of HTML-only parts
-console.log(mixedEmail.html); // Includes textToHtml() conversion of text-only parts
-```
-
-## Handling Nested Emails
-
-Emails can contain other emails (message/rfc822):
-
-```javascript
-// By default, nested emails are parsed and their content is inlined
-const email = await PostalMime.parse(forwardedEmail);
-console.log(email.text); // Contains content from all nested levels
-
-// To treat nested emails as attachments instead
-const email = await PostalMime.parse(forwardedEmail, {
-    forceRfc822Attachments: true
-});
-
-// Find the nested email attachment
-const nestedEmail = email.attachments.find(
-    att => att.mimeType === 'message/rfc822'
+const email = await PostalMime.parse(
+    'Content-Type: text/plain; charset=utf-8; format=flowed\r\n\r\n' +
+        'This is a long paragraph that has been \r\n' +
+        'soft-wrapped by the email client.\r\n' +
+        '\r\n' +
+        '> Quoted text that was \r\n' +
+        '> wrapped as well.\r\n' +
+        '-- \r\n' +
+        'Signature'
 );
 
-// Parse the nested email separately. Pass the raw bytes rather than a decoded
-// string, so that a nested message in a non UTF-8 charset stays intact
-const nested = await PostalMime.parse(nestedEmail.content);
+console.log(email.text);
+// This is a long paragraph that has been soft-wrapped by the email client.
+//
+// > Quoted text that was wrapped as well.
+// -- 
+// Signature
 ```
 
-Inline parsing is bounded by the `maxRfc822NestingDepth` option (10 levels by default). A message nested deeper than that is returned as an attachment with `rfc822DepthExceeded: true`, and its content is not reflected in `text`, `html` or `attachments`. See [Configuration](../getting-started/configuration#maxrfc822nestingdepth).
+## Nested messages
 
-## Character Encoding
-
-postal-mime automatically handles various character encodings:
+A forwarded message attached as a `message/rfc822` part is parsed inline by default. Its headers are rendered as a block in `text` and `html`, followed by its body, and its attachments are added to `attachments`. To keep a nested message as an attachment instead, use the [`rfc822Attachments` or `forceRfc822Attachments`](../api/options#classification-options) options, then parse the attachment yourself when you need it:
 
 ```javascript
-// UTF-8, ISO-8859-1, Windows-1252, etc. are automatically decoded
-const email = await PostalMime.parse(emailWithJapaneseContent);
-console.log(email.subject); // Correctly decoded Unicode text
+import PostalMime from 'postal-mime';
+
+const raw = `Subject: Fwd: Report
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: text/plain
+
+See the forwarded message.
+--b
+Content-Type: message/rfc822
+
+From: carol@example.com
+Subject: Report
+
+Report body
+--b--
+`;
+
+const email = await PostalMime.parse(raw, { forceRfc822Attachments: true });
+
+const forwarded = email.attachments.find(att => att.mimeType === 'message/rfc822');
+// Pass the raw bytes, not a decoded string, so a non UTF-8 message stays intact
+const nested = await PostalMime.parse(forwarded.content);
+console.log(nested.subject); // "Report"
 ```
 
-Every charset label of the WHATWG Encoding Standard is supported, plus common aliases seen in mail: `x-` and `cs` prefixes, Windows and IBM code page numbers such as `cp932` or `windows-949`, `iso-8859-8-i`, the Shift_JIS, EUC and ISO-2022-JP families and `tis-620`. A part without a charset, or with a label that cannot be resolved, is decoded as UTF-8 when its bytes are valid UTF-8 and as windows-1252 otherwise, and an HTML part without a charset may name its own in a `<meta>` tag. See [decodeWords()](../api/decode-words#supported-charsets) for the full list.
+Bounces and abuse reports (messages with a `message/delivery-status` or `message/feedback-report` part) always keep the original message as an attachment. Inline parsing stops at [`maxRfc822NestingDepth`](../api/options#maxrfc822nestingdepth) levels, and a deeper message is returned as an attachment flagged with `rfc822DepthExceeded`.
 
-### MIME Encoded Words
+## Character encoding
 
-Headers with encoded words (=?charset?encoding?text?=) are automatically decoded:
+Headers, bodies and file names are decoded from the charset they declare. Every WHATWG charset label is supported, along with the aliases mail clients use, such as `cp932` and `iso-2022-jp-2`. A body without a charset, or with a label that cannot be resolved, is decoded as UTF-8 when its bytes are valid UTF-8 and as windows-1252 otherwise. See [Supported charsets](../api/decode-words#supported-charsets).
 
 ```javascript
-// Raw header: "Subject: =?UTF-8?B?44GT44KT44Gr44Gh44Gv?="
+import PostalMime from 'postal-mime';
+
+const email = await PostalMime.parse('Subject: =?UTF-8?B?44GT44KT44Gr44Gh44Gv?=\n\nBody');
 console.log(email.subject); // "こんにちは"
 ```
 
-## Date Handling
+## Dates
 
-The `date` field is converted to ISO 8601 format when valid:
+`date` is the `Date` header as an ISO 8601 string, or the header as written when it cannot be parsed:
 
 ```javascript
-console.log(email.date);
-// "2024-01-15T10:30:00.000Z"
+import PostalMime from 'postal-mime';
 
-// If the date is invalid, the original string is preserved
+const email = await PostalMime.parse('Date: Mon, 15 Jan 2024 10:30:00 +0000\n\nBody');
+console.log(email.date); // "2024-01-15T10:30:00.000Z"
+
+// Convert it back to a Date, checking for an unparseable value
+const sent = new Date(email.date);
+console.log(Number.isNaN(sent.getTime()) ? 'unknown date' : sent.toUTCString());
+// Mon, 15 Jan 2024 10:30:00 GMT
 ```
 
-## Error Handling
+## Errors
 
-Every error the parser throws has a `code` property, see [Errors](../api/errors) for the full list. Check the code rather than the message, which may change between releases:
+Malformed content does not cause an error: the parser recovers and returns what it could read. Errors are raised for invalid options or input, and for a message that exceeds a security limit. Each has a `code`:
 
 ```javascript
+import PostalMime from 'postal-mime';
+
 try {
-    const email = await PostalMime.parse(rawEmail);
-} catch (error) {
-    switch (error.code) {
-        case 'EINVALIDOPTION':
-            console.error('Invalid parser option:', error.message);
-            break;
-        case 'EMAXNESTINGDEPTH':
-            console.error('Email has too many nested parts');
-            break;
-        case 'EMAXHEADERSIZE':
-            console.error('Email headers are too large');
-            break;
-        default:
-            console.error('Failed to parse email:', error);
-    }
+    await PostalMime.parse('Subject: Hello\n\nBody', { maxHeadersSize: 10 });
+} catch (err) {
+    console.log(err.code); // "EMAXHEADERSIZE"
 }
 ```
 
-## Complete Parsing Flow
+See [Errors](../api/errors) for every code.
 
-```mermaid
-flowchart TD
-    A[Raw Email Input] --> B{Input Type}
-    B -->|String| C[Encode to UTF-8]
-    B -->|ArrayBuffer| D[Use directly]
-    B -->|Blob| E[Convert to ArrayBuffer]
-    B -->|Stream| F[Read to ArrayBuffer]
+## See Also
 
-    C --> G[Parse Line by Line]
-    D --> G
-    E --> G
-    F --> G
-
-    G --> H[Build MIME Tree]
-    H --> I[Process Headers]
-    H --> J[Process Body Parts]
-
-    I --> K[Decode Addresses]
-    I --> L[Decode Subject]
-
-    J --> M[Extract Text/HTML]
-    J --> N[Extract Attachments]
-
-    K --> O[Email Object]
-    L --> O
-    M --> O
-    N --> O
-```
+- [Email Object](../api/email) - The exact behavior of every property
+- [Working with Attachments](./working-with-attachments) - Saving, filtering and displaying attachments
+- [Parser Options](../api/options) - Classification options and security limits
+- [Security](./security) - Parsing untrusted mail

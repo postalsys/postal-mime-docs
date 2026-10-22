@@ -9,7 +9,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'getting-started/installation',
         'getting-started/quick-start',
-        'getting-started/configuration',
+        'getting-started/upgrading',
       ],
     },
     {
@@ -27,6 +27,8 @@ const sidebars: SidebarsConfig = {
       label: 'API Reference',
       items: [
         'api/postal-mime',
+        'api/options',
+        'api/email',
         'api/address-parser',
         'api/decode-words',
         'api/types',
@@ -43,6 +45,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
     'troubleshooting',
+    'llm-context',
   ],
 };
 

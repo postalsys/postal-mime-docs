@@ -18,8 +18,8 @@ const FeatureList: FeatureItem[] = [
     image: '/img/mascot/parsing.png',
     description: (
       <>
-        Lightweight and self-contained. No external dependencies means faster
-        installs, smaller bundles, and no supply chain concerns.
+        Self-contained, with no runtime dependencies. Runs in Node.js 20+,
+        browsers, Web Workers, Deno and Bun.
       </>
     ),
   },
@@ -28,8 +28,8 @@ const FeatureList: FeatureItem[] = [
     image: '/img/mascot/server.png',
     description: (
       <>
-        Perfect for Cloudflare Email Workers. Parse incoming emails, extract
-        attachments, store to R2, forward based on content, and more.
+        Parses the raw message stream of a Cloudflare Email Worker directly.
+        Extract attachments, store them in R2, or forward based on content.
       </>
     ),
     link: '/docs/guides/cloudflare-workers',
@@ -41,7 +41,7 @@ const FeatureList: FeatureItem[] = [
     description: (
       <>
         Type declarations are generated from the source and ship with both the
-        ES module and the CommonJS build, for type safety and IDE support out of the box.
+        ES module and the CommonJS build.
       </>
     ),
   },

@@ -1,294 +1,143 @@
 ---
+title: PostalMime
 sidebar_position: 1
+description: Reference for the PostalMime class, its static parse() method, the constructor and the instance parse() method.
 ---
 
 # PostalMime
 
 <img src="/img/mascot/structure.png" alt="postal-mime mascot with structure" className="mascot-header" />
 
-The main class for parsing RFC822 email messages.
-
-## Import
+`PostalMime` is the default export of the package. It parses an RFC 822 email message into an [`Email`](./email) object.
 
 ```javascript
 import PostalMime from 'postal-mime';
 ```
 
-## Static Methods
+```javascript
+// CommonJS: require() returns the class itself
+const PostalMime = require('postal-mime');
+```
 
-### PostalMime.parse()
+## PostalMime.parse()
 
-Parse an email message using the static method (recommended for most use cases).
+Parses a message with a new parser instance. This is the usual way to use the library (since 2.2.0).
 
 ```javascript
 PostalMime.parse(email, options?) -> Promise<Email>
 ```
 
-#### Parameters
+### Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `email` | `RawEmail` | Yes | The raw email content to parse |
-| `options` | `PostalMimeOptions` | No | Parsing configuration options |
+| `email` | [`RawEmail`](#input-types) | Yes | The raw message |
+| `options` | [`PostalMimeOptions`](./options) | No | Parser options |
 
-#### RawEmail Types
+### Return value
 
-The `email` parameter accepts multiple input formats:
+A `Promise` that resolves to an [`Email`](./email) object.
 
-| Type | Description |
-|------|-------------|
-| `string` | Raw email as a string |
-| `ArrayBuffer` | Raw email as ArrayBuffer |
-| `ArrayBufferView` | A `Uint8Array`, a Node.js `Buffer`, a `DataView` or any other typed array |
-| `Blob` | Blob or File object |
-| `ReadableStream` | Web ReadableStream of bytes, read to completion before parsing |
+### Exceptions
 
-#### Options
+The promise rejects with an error that has a [`code`](./errors) property: `EINVALIDOPTION` for an invalid option, `EINVALIDINPUT` for an unsupported input type, and one of the `EMAX*` codes when the message exceeds a [security limit](./options#security-limits). An invalid option rejects the promise rather than throwing synchronously.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `rfc822Attachments` | `boolean` | `false` | Treat `message/rfc822` parts without Content-Disposition as attachments |
-| `forceRfc822Attachments` | `boolean` | `false` | Treat all `message/rfc822` parts as attachments |
-| `attachmentEncoding` | `string` | `'arraybuffer'` | How to encode attachment content: `'arraybuffer'`, `'base64'`, or `'utf8'`. Any other value is an `EINVALIDOPTION` error |
-| `maxNestingDepth` | `number` | `256` | Maximum MIME part nesting depth |
-| `maxHeadersSize` | `number` | `2097152` | Maximum total header size in bytes (2MB), counted across every part |
-| `maxPartCount` | `number` | `10000` | Maximum number of MIME parts in a message, the top-level part included, counted across every level |
-| `maxRfc822NestingDepth` | `number` | `10` | Maximum depth of inline `message/rfc822` parsing; deeper messages become attachments flagged with `rfc822DepthExceeded` |
-| `maxForwardedAddresses` | `number` | `10000` | Maximum number of From, To, Cc and Bcc addresses across all inline `message/rfc822` parts, a group and each of its members included, counted across every level |
+Malformed message content is not an error. The parser recovers from it and returns what it could read.
 
-The limit options must be non-negative integers. Any other value, including a numeric string, `NaN` or `Infinity`, rejects the parse with an `EINVALIDOPTION` `TypeError`, and `0` means a literal zero rather than the default.
-
-#### Returns
-
-`Promise<Email>` - A Promise that resolves to the parsed email object.
-
-#### Example
+### Example
 
 ```javascript
 import PostalMime from 'postal-mime';
 
-const rawEmail = `From: sender@example.com
+const email = await PostalMime.parse(`From: sender@example.com
 To: recipient@example.com
 Subject: Hello
 Content-Type: text/plain
 
-Hello, World!`;
+Hello, World!`);
 
-const email = await PostalMime.parse(rawEmail);
 console.log(email.subject); // "Hello"
+console.log(email.text);    // "Hello, World!\n"
 ```
 
-#### With Options
+## Input types
 
-```javascript
-const email = await PostalMime.parse(rawEmail, {
-    attachmentEncoding: 'base64',
-    maxNestingDepth: 50
-});
-```
+The `email` argument is a `RawEmail`:
+
+| Type | Notes |
+|------|-------|
+| `string` | Encoded to UTF-8 bytes before parsing. Pass bytes instead when the message may contain 8-bit text in another charset |
+| `ArrayBuffer` | Also a `SharedArrayBuffer` |
+| `ArrayBufferView` | A `Uint8Array`, a Node.js `Buffer`, a `DataView` or any other typed array. Only the bytes of the view are read |
+| `Blob` | Also a `File`, such as one from an `<input type="file">` |
+| `ReadableStream<Uint8Array>` | Read to completion before parsing starts, so the whole message is still held in memory. A chunk that is not an `ArrayBufferView` is an `EINVALIDINPUT` error |
+
+`null`, `undefined` and an empty string parse to an empty message. Any other value, such as a number or a plain object, is an `EINVALIDINPUT` error. An error raised by the `ReadableStream` or `Blob` itself is passed through unchanged and has no postal-mime `code`.
 
 ## Constructor
-
-### new PostalMime()
-
-Create a new parser instance.
 
 ```javascript
 new PostalMime(options?)
 ```
 
-#### Parameters
+Creates a parser instance. The constructor validates `options` and throws an `EINVALIDOPTION` error synchronously for an invalid one.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `options` | `PostalMimeOptions` | No | Parsing configuration options |
+| `options` | [`PostalMimeOptions`](./options) | No | Parser options |
 
-#### Example
-
-```javascript
-const parser = new PostalMime({ attachmentEncoding: 'base64' });
-const email = await parser.parse(rawEmail);
-```
-
-The constructor validates the options and throws an `EINVALIDOPTION` error synchronously for an invalid one. The static `PostalMime.parse()` reports the same error by rejecting its promise.
-
-:::caution
-Parser instances cannot be reused. Calling `parse()` a second time rejects with an `EPARSERREUSED` error. Create a new instance for each email you parse.
-:::
-
-## Instance Methods
-
-### parse()
-
-Parse an email message.
+## parse() instance method
 
 ```javascript
 parser.parse(email) -> Promise<Email>
 ```
 
-#### Parameters
+Parses a message with the options given to the constructor. It takes the same [input types](#input-types) and resolves to an [`Email`](./email) object.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `email` | `RawEmail` | Yes | The raw email content to parse |
-
-#### Returns
-
-`Promise<Email>` - A Promise that resolves to the parsed email object.
-
-#### Example
-
-```javascript
-const parser = new PostalMime();
-const email = await parser.parse(rawEmail);
-```
-
-## Email Object
-
-The parsed email object contains the following properties:
-
-### Headers
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `headers` | `Header[]` | Every header in message order, duplicates included (values unfolded, not decoded) |
-| `headerLines` | `HeaderLine[]` | Array of raw header lines (original formatting) |
-
-```javascript
-// Unfolded header values (line breaks removed, whitespace kept; encoded words are NOT decoded)
-email.headers.forEach(header => {
-    console.log(header.key);         // Lowercase header name
-    console.log(header.originalKey); // Original header name preserving case
-    console.log(header.value);       // Header value (not decoded, use decodeWords() if needed)
-});
-
-// Raw header lines (preserves original formatting for DKIM, etc.)
-email.headerLines.forEach(headerLine => {
-    console.log(headerLine.key);  // Lowercase header name
-    console.log(headerLine.line); // Complete raw header line
-});
-```
-
-:::tip
-The `headerLines` property is useful for DKIM signature verification and other cases where original header formatting must be preserved:
-
-```javascript
-const dkimLine = email.headerLines.find(h => h.key === 'dkim-signature');
-if (dkimLine) {
-    console.log(dkimLine.line);
-    // Original folding, whitespace, and encoded words are preserved
-}
-```
-:::
-
-Where a header is exposed as a single property, such as `subject`, `from` or `messageId`, the first occurrence wins. The address lists `to`, `cc`, `bcc` and `replyTo` collect every occurrence in message order.
-
-### Addresses
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `from` | `Address \| undefined` | From address |
-| `sender` | `Address \| undefined` | Sender address |
-| `replyTo` | `Address[] \| undefined` | Reply-To addresses |
-| `to` | `Address[] \| undefined` | To addresses |
-| `cc` | `Address[] \| undefined` | CC addresses |
-| `bcc` | `Address[] \| undefined` | BCC addresses |
-| `deliveredTo` | `string \| undefined` | Delivered-To address (string only) |
-| `returnPath` | `string \| undefined` | Return-Path address (string only) |
-
-### Message Identifiers
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `messageId` | `string \| undefined` | Message-ID header |
-| `inReplyTo` | `string \| undefined` | In-Reply-To header |
-| `references` | `string \| undefined` | References header |
-
-### Content
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `subject` | `string \| undefined` | Subject line (decoded) |
-| `date` | `string \| undefined` | Date in ISO 8601 format |
-| `text` | `string \| undefined` | Plain text content, CRLF line endings normalized to LF |
-| `html` | `string \| undefined` | HTML content, CRLF line endings normalized to LF |
-| `attachments` | `Attachment[]` | Array of attachments, see [Attachment](./types#attachment) |
-
-## Complete Example
+A parser instance parses one message. Calling `parse()` a second time on the same instance rejects with `EPARSERREUSED`, so create a new instance, or use `PostalMime.parse()`, for each message.
 
 ```javascript
 import PostalMime from 'postal-mime';
 
-async function processEmail(rawEmail) {
-    const email = await PostalMime.parse(rawEmail, {
-        attachmentEncoding: 'base64'
-    });
+const parser = new PostalMime({ attachmentEncoding: 'base64' });
+const email = await parser.parse('Subject: Instance\n\nBody');
+console.log(email.subject); // "Instance"
 
-    console.log('From:', email.from?.address);
-    console.log('To:', email.to?.map(a => a.address).join(', '));
-    console.log('Subject:', email.subject);
-    console.log('Date:', email.date);
-
-    if (email.text) {
-        console.log('Text content:', email.text);
-    }
-
-    if (email.html) {
-        console.log('HTML content available');
-    }
-
-    console.log(`Attachments: ${email.attachments.length}`);
-    email.attachments.forEach(att => {
-        console.log(`  - ${att.filename} (${att.mimeType})`);
-    });
+try {
+    await parser.parse('Subject: Second\n\nBody');
+} catch (err) {
+    console.log(err.code); // "EPARSERREUSED"
 }
+```
+
+## Utility functions
+
+The package also exports two functions, which are attached to the class as static properties in the CommonJS build:
+
+- [`addressParser()`](./address-parser) parses an address header into mailboxes and groups
+- [`decodeWords()`](./decode-words) decodes RFC 2047 encoded words
+
+```javascript
+import PostalMime, { addressParser, decodeWords } from 'postal-mime';
 ```
 
 ## TypeScript
 
 ```typescript
 import PostalMime from 'postal-mime';
-import type { Email, PostalMimeOptions } from 'postal-mime';
+import type { Email, PostalMimeOptions, RawEmail } from 'postal-mime';
 
-const options: PostalMimeOptions = {
-    attachmentEncoding: 'base64',
-    maxNestingDepth: 100
-};
-
-const email: Email = await PostalMime.parse(rawEmail, options);
-```
-
-## Error Handling
-
-Every error the parser throws has a `code` property. See [Errors](./errors) for the full list of codes.
-
-```javascript
-try {
-    const email = await PostalMime.parse(rawEmail);
-} catch (error) {
-    switch (error.code) {
-        case 'EINVALIDOPTION':
-        case 'EINVALIDINPUT':
-            console.error('Invalid parser option or input:', error.message);
-            break;
-        case 'EMAXNESTINGDEPTH':
-            console.error('Email has too many nested parts');
-            break;
-        case 'EMAXHEADERSIZE':
-            console.error('Email headers are too large');
-            break;
-        case 'EPARSERREUSED':
-            console.error('Parser instance already used');
-            break;
-        default:
-            console.error('Parsing failed:', error);
-    }
+async function parse(raw: RawEmail): Promise<Email> {
+    const options: PostalMimeOptions = { attachmentEncoding: 'base64' };
+    return PostalMime.parse(raw, options);
 }
 ```
 
+See [Types](./types) for every exported type.
+
 ## See Also
 
-- [addressParser()](./address-parser) - Parse email addresses
-- [decodeWords()](./decode-words) - Decode MIME encoded words
-- [Types](./types) - TypeScript type definitions
-- [Errors](./errors) - Error codes
+- [Parser Options](./options) - Every option, its default and its validation
+- [Email Object](./email) - What `parse()` resolves to
+- [Errors](./errors) - The error codes `parse()` rejects with
+- [Parsing Emails](../guides/parsing-emails) - Reading messages from files, uploads, fetch and streams

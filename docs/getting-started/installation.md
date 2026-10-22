@@ -1,112 +1,113 @@
 ---
+title: Installation
 sidebar_position: 1
+description: Install postal-mime from npm and import it in Node.js, browsers, Web Workers, Deno, Bun and Cloudflare Workers, as an ES module or with CommonJS.
 ---
 
 # Installation
 
 <img src="/img/mascot/mailpile.png" alt="postal-mime mascot with envelopes" className="mascot-header" />
 
-postal-mime can be installed via npm and works in various JavaScript environments.
-
-## npm Installation
-
 ```bash
 npm install postal-mime
 ```
 
+postal-mime has no runtime dependencies.
+
+## Requirements
+
+The package needs a runtime with the `TextDecoder`, `Blob` and `ReadableStream` globals:
+
+| Environment | Support |
+|-------------|---------|
+| Node.js | 20 or newer (the package `engines` field). The test suite runs on Node.js 20, 22, 24 and 26 |
+| Browsers | Any current browser, in a page or a Web Worker |
+| Cloudflare Workers | Supported, including Email Workers |
+| Deno | Supported, through the `npm:` specifier |
+| Bun | Supported |
+
+Node.js 20 has been required since 4.0.0. Earlier releases declared no minimum version.
+
 ## Importing
 
-### ES Modules (Recommended)
-
-For modern projects using ES modules:
+### ES modules
 
 ```javascript
-import PostalMime from 'postal-mime';
+import PostalMime, { addressParser, decodeWords } from 'postal-mime';
 ```
 
-### CommonJS
+The package `exports` map resolves this to the ES module build in `dist/esm/`.
 
-For projects using CommonJS (Node.js with `require`):
+### CommonJS
 
 ```javascript
 const PostalMime = require('postal-mime');
 const { addressParser, decodeWords } = require('postal-mime');
 ```
 
-`require()` returns the `PostalMime` class itself, with the utility functions attached to it. Both module formats are compiled from the same TypeScript source.
+`require()` resolves to the CommonJS build in `dist/cjs/` and returns the `PostalMime` class itself, with `addressParser` and `decodeWords` attached as properties. Both builds are compiled from the same TypeScript source. The CommonJS build exists since 2.6.0.
 
-### Browser (Direct Import)
+### Browsers with a bundler
 
-With a bundler such as Vite, webpack or esbuild, import the package by name and the bundler picks the ES module build through the package `exports` map. Without a bundler, load the ES module build from `dist/esm` directly, in a page or in a Web Worker:
-
-```javascript
-import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
-```
-
-:::note
-The `dist/esm` build exists from postal-mime 4.0 on. Earlier versions shipped the ES module source at `src/postal-mime.js` instead, so use that path with a 3.x release.
-:::
-
-### Deno
-
-Use the `npm:` specifier to import postal-mime in Deno:
-
-```typescript
-import PostalMime from 'npm:postal-mime';
-import { addressParser, decodeWords } from 'npm:postal-mime';
-```
-
-### Bun
-
-Bun supports npm packages directly with the same syntax as Node.js:
+With Vite, webpack, esbuild or another bundler, import the package by name. The bundler picks the ES module build through the `exports` map:
 
 ```javascript
 import PostalMime from 'postal-mime';
 ```
 
-## Environment Support
+### Browsers without a bundler
 
-postal-mime works in the following environments:
+Load the ES module build from `dist/esm/` directly, in a page or in a module Web Worker:
 
-| Environment | Support |
-|------------|---------|
-| Node.js 18+ | Full support |
-| Modern Browsers | Full support |
-| Web Workers | Full support |
-| Cloudflare Workers | Full support |
-| Deno | Full support |
-| Bun | Full support |
+```html
+<script type="module">
+    import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
+
+    const email = await PostalMime.parse('Subject: Hello\n\nHi there');
+    console.log(email.subject); // "Hello"
+</script>
+```
+
+:::note
+The `dist/esm/` build exists since 4.0.0. The 3.x releases shipped the ES module source at `src/postal-mime.js` instead. See [Upgrading](./upgrading).
+:::
+
+### Deno
+
+```typescript
+import PostalMime from 'npm:postal-mime';
+
+const email = await PostalMime.parse('Subject: Hello\n\nHi there');
+console.log(email.subject); // "Hello"
+```
+
+### Bun and Cloudflare Workers
+
+Both resolve the package by name, like Node.js:
+
+```javascript
+import PostalMime from 'postal-mime';
+```
+
+See the [Cloudflare Workers guide](../guides/cloudflare-workers) for Email Workers.
 
 ## TypeScript
 
-postal-mime is written in TypeScript. The declarations are generated from the source and shipped next to both builds, so no additional `@types` package is needed.
+The package is written in TypeScript and ships its declarations with both builds, so no `@types` package is needed:
 
 ```typescript
 import PostalMime from 'postal-mime';
 import type { Email, PostalMimeOptions } from 'postal-mime';
 
-const options: PostalMimeOptions = {
-    attachmentEncoding: 'base64'
-};
-
-const email: Email = await PostalMime.parse(rawEmail, options);
+const options: PostalMimeOptions = { attachmentEncoding: 'base64' };
+const email: Email = await PostalMime.parse('Subject: Hello\n\nHi there', options);
 ```
 
-## Utility Functions
+See [Types](../api/types) for every exported type, and for the CommonJS `import PostalMime = require('postal-mime')` form.
 
-postal-mime also exports utility functions that can be imported separately:
+## Verify the installation
 
-```javascript
-import PostalMime, { addressParser, decodeWords } from 'postal-mime';
-```
-
-## Bundle Size
-
-postal-mime has **zero dependencies**, making it ideal for frontend applications where bundle size matters. The whole library is about 80 KB minified and 25 KB gzipped, most of which is the HTML entity table used when converting HTML to plain text.
-
-## Verification
-
-After installation, verify it works:
+Save this as `check.mjs` and run `node check.mjs`:
 
 ```javascript
 import PostalMime from 'postal-mime';
@@ -115,3 +116,10 @@ const email = await PostalMime.parse('Subject: Test\n\nHello');
 console.log(email.subject); // "Test"
 console.log(email.text);    // "Hello\n"
 ```
+
+## See Also
+
+- [Quick Start](./quick-start) - Parse a first message and read its properties
+- [Upgrading](./upgrading) - Changes to watch for when moving to a newer major version
+- [Types](../api/types) - TypeScript declarations and CommonJS typing
+- [Cloudflare Workers](../guides/cloudflare-workers) - Using postal-mime in an Email Worker

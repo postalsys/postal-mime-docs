@@ -1,364 +1,202 @@
 ---
+title: Troubleshooting
 sidebar_position: 6
+description: Fixes for common postal-mime problems, from error codes and missing bodies to garbled text, missing attachments and import errors.
 ---
 
 # Troubleshooting
 
 <img src="/img/mascot/confused.png" alt="postal-mime mascot confused" className="mascot-header" />
 
-Common issues and their solutions when using postal-mime.
+## Errors
 
-## Parsing Errors
+Every error the parser throws has a `code` property. Check `err.code` rather than the message text, see [Errors](./api/errors) for the full list.
 
-Every error the parser throws has a `code` property. Check `error.code` rather than the message text, see [Errors](./api/errors) for the full list.
+### EPARSERREUSED: "Can not reuse parser, create a new PostalMime object"
 
-### "Can not reuse parser, create a new PostalMime object"
-
-**Code**: `EPARSERREUSED`
-
-**Cause**: Attempting to use the same parser instance twice.
-
-**Solution**: Create a new parser instance for each email:
+A `PostalMime` instance parses one message, and `parse()` was called on it a second time. Use the static method, which creates a parser for every call, or a new instance per message:
 
 ```javascript
-// Wrong
-const parser = new PostalMime();
-await parser.parse(email1);
-await parser.parse(email2); // Error!
+import PostalMime from 'postal-mime';
 
-// Correct
-const email1Parsed = await PostalMime.parse(email1);
-const email2Parsed = await PostalMime.parse(email2);
-
-// Or with instances
-const parser1 = new PostalMime();
-const parser2 = new PostalMime();
-await parser1.parse(email1);
-await parser2.parse(email2);
+const first = await PostalMime.parse('Subject: One\n\nBody');
+const second = await PostalMime.parse('Subject: Two\n\nBody');
+console.log(first.subject, second.subject); // One Two
 ```
 
-### "Maximum MIME nesting depth exceeded"
+### EMAXNESTINGDEPTH, EMAXHEADERSIZE, EMAXPARTCOUNT, EMAXFORWARDEDADDRESSES
 
-**Code**: `EMAXNESTINGDEPTH`
+The message exceeds one of the [security limits](./api/options#security-limits). The defaults are generous, so a message that reaches them is usually malicious or broken, and rejecting it is the usual response:
 
-**Cause**: The email contains more nested MIME parts than allowed (default: 256).
-
-**Solutions**:
-
-1. Increase the limit (use with caution):
 ```javascript
-const email = await PostalMime.parse(rawEmail, {
-    maxNestingDepth: 512
-});
-```
+import PostalMime from 'postal-mime';
 
-2. The email may be malicious - consider rejecting it:
-```javascript
-try {
-    const email = await PostalMime.parse(rawEmail);
-} catch (error) {
-    if (error.code === 'EMAXNESTINGDEPTH') {
-        console.log('Rejecting potentially malicious email');
-        return;
+async function parseOrSkip(raw) {
+    try {
+        return await PostalMime.parse(raw);
+    } catch (err) {
+        if (err.code?.startsWith('EMAX')) {
+            console.warn('Skipping message:', err.code);
+            return null;
+        }
+        throw err;
     }
-    throw error;
 }
 ```
 
-### "Maximum header size exceeded"
+If legitimate mail you need to accept hits a limit, raise only that limit, and only as far as you need. A message with many inline forwards can reach `maxHeadersSize` or `maxPartCount` since 4.0.8, because inline forwards share the budget of the message that carries them.
 
-**Code**: `EMAXHEADERSIZE`
+### EINVALIDOPTION: "maxNestingDepth must be a non-negative integer"
 
-**Cause**: Headers exceed the size limit (default: 2MB).
-
-**Solutions**:
-
-1. Increase the limit:
-```javascript
-const email = await PostalMime.parse(rawEmail, {
-    maxHeadersSize: 5 * 1024 * 1024 // 5MB
-});
-```
-
-2. Check if the email is malformed or malicious.
-
-### "maxNestingDepth must be a non-negative integer"
-
-**Code**: `EINVALIDOPTION`
-
-**Cause**: One of the limit options (`maxNestingDepth`, `maxHeadersSize`, `maxPartCount`, `maxRfc822NestingDepth` or `maxForwardedAddresses`) was given a value that is not a non-negative integer, such as a numeric string, `NaN` or `Infinity`. The parser rejects these with a `TypeError` that has the code `EINVALIDOPTION` instead of silently switching the limit off.
-
-**Solution**: Pass a number. `0` is accepted and means a literal zero, not "use the default":
+A limit option is not a non-negative integer, for example a numeric string read from an environment variable, `NaN` or `Infinity`. Convert the value and check it, and leave the option out to use the default:
 
 ```javascript
-const email = await PostalMime.parse(rawEmail, {
-    maxNestingDepth: Number(process.env.MAX_DEPTH) || 256
-});
+import PostalMime from 'postal-mime';
+
+const configured = Number.parseInt(process.env.MAX_NESTING_DEPTH ?? '', 10);
+const options = Number.isInteger(configured) && configured >= 0 ? { maxNestingDepth: configured } : {};
+
+const email = await PostalMime.parse('Subject: Hello\n\nBody', options);
 ```
 
-## Content Issues
+`0` is a valid value and means zero, not the default.
 
-### HTML content is empty but email has HTML
+### EINVALIDOPTION: "Unknown attachment encoding"
 
-**Possible causes**:
+`attachmentEncoding` accepts `'arraybuffer'`, `'base64'` and `'utf8'`, see [attachmentEncoding](./api/options#attachmentencoding).
 
-1. The HTML is in an attachment with `Content-Disposition: attachment`:
-```javascript
-// Check attachments for HTML
-const htmlAttachment = email.attachments.find(
-    att => att.mimeType === 'text/html'
-);
+### EINVALIDINPUT: "Unsupported email input type"
 
-if (htmlAttachment) {
-    const decoder = new TextDecoder();
-    const html = decoder.decode(htmlAttachment.content);
-}
-```
+The message was not a string, `ArrayBuffer`, `ArrayBufferView`, `Blob` or `ReadableStream`, for example a number or a plain object such as a parsed JSON body. Pass the raw bytes. A `ReadableStream` whose chunks are not byte views (`ArrayBufferView` values), such as a text stream, raises the same code.
 
-2. The email uses `forceRfc822Attachments` and HTML is in a nested email.
+## Content issues
+
+### `html` is undefined although the message has HTML
+
+- The HTML part has `Content-Disposition: attachment`, so it is in `attachments`:
+
+  ```javascript
+  const htmlAttachment = email.attachments.find(att => att.mimeType === 'text/html');
+  if (htmlAttachment) {
+      const html = new TextDecoder().decode(htmlAttachment.content);
+  }
+  ```
+
+- The HTML is inside a forwarded message that was kept as an attachment, by `forceRfc822Attachments`, `rfc822Attachments`, a delivery report, or `maxRfc822NestingDepth`. Parse the `message/rfc822` attachment's `content`.
 
 ### Text content has strange characters
 
-**Cause**: Character encoding issues.
+The text was decoded with the wrong charset. Check what the message declares:
 
-**Solution**: Verify the email has correct Content-Type charset:
 ```javascript
 const contentType = email.headers.find(h => h.key === 'content-type');
-console.log('Content-Type:', contentType?.value);
+console.log(contentType?.value);
 ```
 
-postal-mime follows a declared charset even when the bytes are not in it, so if the message declares the wrong charset, the text comes out wrong too. A part without a charset, or with a label that cannot be resolved, is decoded as UTF-8 when its bytes are valid UTF-8 and as windows-1252 otherwise, and an HTML part without a charset may name its own in a `<meta>` tag.
+- A declared charset is followed even when the bytes are not valid in it, so a message that declares the wrong charset decodes to the wrong text. This is the sender's error.
+- If the message was passed in as a string that was decoded from bytes first, text in a charset other than UTF-8 was already damaged. Pass the bytes (`Buffer`, `ArrayBuffer`, `Uint8Array` or `Blob`) instead.
+- A part without a charset, or with a label that cannot be resolved, is read as UTF-8 when its bytes are valid UTF-8 and as windows-1252 otherwise.
 
-### Missing subject or other headers
+See [Supported charsets](./api/decode-words#supported-charsets).
 
-**Check**: List every header the parser saw. Where a header appears more than once, a property such as `subject` reflects the first occurrence:
+### A header looks missing
 
-```javascript
-// Check all headers
-email.headers.forEach(h => {
-    console.log(`${h.key}: ${h.value}`);
-});
-
-// Keys are always lowercase, so no case handling is needed
-const subject = email.headers.find(h => h.key === 'subject');
-```
-
-## Attachment Issues
-
-### Attachments array is empty
-
-**Possible causes**:
-
-1. Email doesn't have attachments (check raw email)
-
-2. All attachments are inline (related to HTML):
-```javascript
-// Check for related attachments
-const relatedAttachments = email.attachments.filter(a => a.related);
-console.log('Related attachments:', relatedAttachments.length);
-```
-
-3. Nested email attachments with default settings:
-```javascript
-// By default, message/rfc822 parts are inlined
-// Use this option to treat them as attachments:
-const email = await PostalMime.parse(rawEmail, {
-    forceRfc822Attachments: true
-});
-```
-
-### Attachment content is corrupted
-
-**Check the encoding**:
+List every header the parser saw:
 
 ```javascript
-const email = await PostalMime.parse(rawEmail);
-
-email.attachments.forEach(att => {
-    console.log('Filename:', att.filename);
-    console.log('Content type:', typeof att.content);
-    console.log('Size:', att.content.byteLength);
-});
-```
-
-**Solution**: Ensure you're handling the ArrayBuffer correctly:
-
-```javascript
-// For saving in Node.js
-import { writeFile } from 'fs/promises';
-
-const buffer = Buffer.from(att.content);
-await writeFile('file.pdf', buffer);
-
-// For downloading in browser
-const blob = new Blob([att.content], { type: att.mimeType });
-const url = URL.createObjectURL(blob);
-```
-
-### A message/rfc822 attachment has `rfc822DepthExceeded: true`
-
-**Cause**: The nested message sits deeper than `maxRfc822NestingDepth` (default: 10) allows, so the parser returned it as an attachment instead of parsing it inline. Nothing inside it is reflected in `text`, `html` or `attachments`.
-
-**Solution**: Parse the attachment content yourself if you need to see inside, and bound how many levels you follow:
-
-```javascript
-if (attachment.rfc822DepthExceeded) {
-    const nested = await PostalMime.parse(attachment.content);
+for (const header of email.headers) {
+    console.log(JSON.stringify(header.key), header.value);
 }
 ```
 
-### Filename is null
+- Keys are lowercase, so look for `'subject'`, not `'Subject'`.
+- A header written with whitespace before the colon, such as `Subject :`, is listed under the key `"subject "` and is not read as the `Subject` header (since 4.1.1).
+- Where a header occurs more than once, `subject`, `from` and the other single-value properties use the first occurrence.
+- Only the headers of the top-level message are listed, not those of MIME parts or forwarded messages.
 
-**Cause**: The attachment doesn't have a filename in Content-Disposition or Content-Type.
+### An address has an empty `address`
 
-**Solution**: Generate a filename based on MIME type:
+The display name holds an encoded word that decodes to something like `Name <name@example.com>`. postal-mime reads addresses only from the raw header (since 4.1.1), so such text stays in `name`. See [Encoded display names](./api/address-parser#encoded-display-names).
 
-```javascript
-function getFilename(attachment) {
-    if (attachment.filename) return attachment.filename;
+### `addressParser()` returns a group without `address`
 
-    const extensions = {
-        'application/pdf': 'pdf',
-        'image/jpeg': 'jpg',
-        'image/png': 'png',
-        'text/plain': 'txt',
-        'text/html': 'html'
-    };
+An entry like `Team: a@example.com, b@example.com;` is a group. Read its members from `group`, or pass `{ flatten: true }` to get mailboxes only. See [addressParser()](./api/address-parser#groups).
 
-    const ext = extensions[attachment.mimeType] || 'bin';
-    return `attachment.${ext}`;
-}
-```
+## Attachment issues
 
-## Address Parsing Issues
+### The attachments array is empty
 
-### Group addresses not parsed correctly
+- The message has no attachments. Text and HTML parts without `Content-Disposition: attachment` are part of the body, not attachments.
+- A forwarded `message/rfc822` part was parsed inline, so its body is in `text` and `html`. Its own attachments are in `attachments`; to get the forwarded message itself as an attachment, use the [`forceRfc822Attachments`](./api/options#forcerfc822attachments) option.
 
-**Solution**: Use type checking to handle groups:
+Inline images are not missing: they are listed in `attachments` with `related: true`.
+
+### Attachment content looks wrong
+
+Check which type `content` has:
 
 ```javascript
-import { addressParser } from 'postal-mime';
-
-const addresses = addressParser(headerValue);
-
-addresses.forEach(addr => {
-    if (addr.group) {
-        console.log(`Group: ${addr.name}`);
-        addr.group.forEach(member => {
-            console.log(`  Member: ${member.address}`);
-        });
-    } else {
-        console.log(`Address: ${addr.address}`);
-    }
-});
-```
-
-### Encoded names not decoded
-
-**Check**: Ensure the encoded-word format is correct:
-
-```javascript
-import { decodeWords } from 'postal-mime';
-
-const encoded = '=?UTF-8?B?SGVsbG8=?=';
-const decoded = decodeWords(encoded);
-console.log(decoded); // "Hello"
-```
-
-If decoding fails, the charset might be unsupported.
-
-## Environment Issues
-
-### Module not found / import errors
-
-**For ESM (recommended)**:
-```javascript
-import PostalMime from 'postal-mime';
-```
-
-**For CommonJS**:
-```javascript
-const PostalMime = require('postal-mime');
-```
-
-**For browser direct import** (postal-mime 4.0 and later; 3.x releases ship the module at `src/postal-mime.js` instead):
-```javascript
-import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
-```
-
-### TypeScript errors
-
-**Solution**: Ensure types are properly imported:
-
-```typescript
-import PostalMime from 'postal-mime';
-import type { Email, PostalMimeOptions } from 'postal-mime';
-
-const options: PostalMimeOptions = {
-    attachmentEncoding: 'base64'
-};
-
-const email: Email = await PostalMime.parse(rawEmail, options);
-```
-
-### Blob not defined (Node.js)
-
-**Cause**: Node.js older than 18 has no global `Blob`, and postal-mime needs Node.js 18 or newer.
-
-**Solution**: Upgrade Node.js. The parser checks every input against `Blob`, so passing a Buffer does not avoid the error on older versions:
-
-```javascript
-import { readFile } from 'fs/promises';
-
-const buffer = await readFile('email.eml');
-const email = await PostalMime.parse(buffer);
-```
-
-## Performance Issues
-
-### Parsing large emails is slow
-
-**Solutions**:
-
-1. Use Web Workers for browser environments (see [Web Worker example](./examples/web-worker))
-
-2. The entire message is held in memory while it is parsed, including when a `ReadableStream` is passed in, so bound the size of untrusted input before parsing it
-
-3. Keep the default `attachmentEncoding` of `'arraybuffer'` unless you need strings: the `base64` and `utf8` encodings do extra work after parsing
-
-### Memory usage is high
-
-**Causes**:
-
-1. Large attachments are kept in memory
-2. Multiple emails parsed without releasing memory
-
-**Solutions**:
-
-1. Process one email at a time and allow garbage collection
-
-2. Extract and save attachments immediately, then clear references:
-```javascript
-const email = await PostalMime.parse(rawEmail);
-
-// Save attachments to disk/storage
 for (const att of email.attachments) {
-    await saveAttachment(att);
+    console.log(att.filename, att.encoding, Object.prototype.toString.call(att.content));
 }
-
-// Clear the email object
-email = null;
 ```
 
-## Still Having Issues?
+- With the default encoding, `content` is an `ArrayBuffer`, or a `Uint8Array` for calendar parts. Wrap it as `new Uint8Array(att.content)` or `Buffer.from(att.content)` to read or write the bytes.
+- With `attachmentEncoding: 'base64'` it is a base64 string, and with `'utf8'` a string decoded as UTF-8, which damages binary files.
+- Calendar parts are normalized to UTF-8 text with LF line endings, so their bytes differ from the message. Every other part holds the bytes exactly as sent.
 
-1. **Check the raw email**: Use a text editor to verify the email format
-2. **Validate the MIME structure**: Tools like `munpack` can help
-3. **Enable debugging**: Add console.log statements to trace the issue
-4. **Report a bug**: [GitHub Issues](https://github.com/postalsys/postal-mime/issues)
+### An attachment has `rfc822DepthExceeded: true`
 
-When reporting issues, please include:
-- postal-mime version
-- Node.js/browser version
-- Minimal reproducible example
-- Sample email (if possible, anonymized)
+The forwarded message was nested deeper than [`maxRfc822NestingDepth`](./api/options#maxrfc822nestingdepth) allows (default 10), so it was not parsed and nothing inside it is reflected in the result. Parse its `content` yourself if you need it, and bound how many levels you follow.
+
+### `filename` is null
+
+The part names no file in Content-Disposition or Content-Type. Choose a name yourself:
+
+```javascript
+const EXTENSIONS = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'text/plain': 'txt' };
+
+function displayName(att, index) {
+    return att.filename || `attachment-${index}.${EXTENSIONS[att.mimeType] || 'bin'}`;
+}
+```
+
+## Environment issues
+
+### Import or module resolution errors
+
+- ES modules: `import PostalMime from 'postal-mime'`
+- CommonJS: `const PostalMime = require('postal-mime')`
+- Browser without a bundler: `import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js'`. The 3.x releases shipped this file at `src/postal-mime.js`, see [Upgrading](./getting-started/upgrading)
+- TypeScript with CommonJS and `esModuleInterop` off: `import PostalMime = require('postal-mime')`, see [Types](./api/types#importing-types)
+
+### "Blob is not defined" or "TextDecoder is not defined"
+
+The runtime is older than postal-mime supports. Version 4 requires Node.js 20 or newer, see [Requirements](./getting-started/installation#requirements).
+
+## Performance issues
+
+### Parsing blocks the page
+
+Move parsing into a Web Worker, see the [Web Worker example](./examples/web-worker).
+
+### Memory use is high
+
+- The whole message is held in memory while it is parsed, including when a `ReadableStream` is passed in. Bound the size of input before parsing it.
+- The `base64` and `utf8` attachment encodings turn every attachment into a string, which takes more memory than the bytes it holds. Keep the default encoding unless you need strings.
+- Process messages one at a time, and release references to parsed messages, and to their attachments, once you have stored what you need.
+
+## Reporting a bug
+
+If the parser returns something you believe is wrong, open an issue at [github.com/postalsys/postal-mime/issues](https://github.com/postalsys/postal-mime/issues) with:
+
+- the postal-mime version and the runtime and its version
+- a minimal message that reproduces the problem, with personal data removed
+- the code that parses it, what it returns and what you expected
+
+## See Also
+
+- [Errors](./api/errors) - Every error code
+- [Parser Options](./api/options) - Limits and attachment encoding
+- [Email Object](./api/email) - What each property holds
+- [Security](./guides/security) - Handling untrusted mail

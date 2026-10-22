@@ -1,14 +1,14 @@
 ---
-sidebar_position: 2
+title: addressParser()
+sidebar_position: 4
+description: Reference for addressParser(), which parses an email address header into mailboxes and RFC 5322 groups.
 ---
 
 # addressParser()
 
 <img src="/img/mascot/magnifier.png" alt="postal-mime mascot searching" className="mascot-header" />
 
-Utility function for parsing email address headers into structured objects.
-
-## Import
+`addressParser()` parses the value of an address header, such as `From`, `To` or `Cc`, into structured addresses. `PostalMime.parse()` uses it for the [address properties](./email#addresses) of the parsed message. It is exported since 2.2.4.
 
 ```javascript
 import { addressParser } from 'postal-mime';
@@ -20,286 +20,168 @@ import { addressParser } from 'postal-mime';
 addressParser(addressStr, options?) -> Address[]
 ```
 
-## Parameters
+### Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `addressStr` | `string` | Yes | Raw address header string |
+| `addressStr` | `string` | Yes | The raw header value, without the header name |
 | `options` | `AddressParserOptions` | No | Parser options |
 
 ### Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `flatten` | `boolean` | `false` | If `true`, ignores address groups and returns a flat array of addresses |
+| `flatten` | `boolean` | `false` | When `true`, groups are replaced by their members, so the result is a flat array of mailboxes |
 
-## Returns
+### Return value
 
-`Address[]` - An array of address objects.
+An array of addresses, in header order. Each address is either:
 
-## Address Object
+- a **mailbox**, `{ address, name }`, where `name` is the decoded display name or `""`, or
+- a **group**, `{ name, group }`, where `group` is an array of mailboxes.
 
-Each address in the returned array has one of two forms:
-
-### Mailbox (Individual Address)
-
-```javascript
-{
-    name: string,     // Display name (decoded)
-    address: string   // Email address
-}
-```
-
-### Address Group
-
-```javascript
-{
-    name: string,         // Group name
-    group: Mailbox[]      // Array of addresses in the group
-}
-```
-
-The TypeScript type of a group is `AddressGroup`, and `Address` is the union `Mailbox | AddressGroup`. Groups are never nested: RFC 5322 does not allow it, so the members of a group found inside another group are lifted into the outer group.
+The TypeScript types are `Mailbox`, `AddressGroup` and their union `Address`, see [Types](./types#address-mailbox-and-addressgroup). The function does not throw; text that holds no address gives a mailbox with an empty `address`, and an empty string gives `[]`.
 
 ## Examples
 
-### Basic Usage
+### Mailboxes
 
 ```javascript
 import { addressParser } from 'postal-mime';
 
-const addresses = addressParser('John Doe <john@example.com>');
-console.log(addresses);
-// [{ name: 'John Doe', address: 'john@example.com' }]
-```
+console.log(addressParser('John Doe <john@example.com>'));
+// [ { address: 'john@example.com', name: 'John Doe' } ]
 
-### Multiple Addresses
-
-```javascript
-const addresses = addressParser(
-    'Alice <alice@example.com>, Bob <bob@example.com>'
-);
-console.log(addresses);
+console.log(addressParser('Alice <alice@example.com>, bob@example.com'));
 // [
-//   { name: 'Alice', address: 'alice@example.com' },
-//   { name: 'Bob', address: 'bob@example.com' }
+//   { address: 'alice@example.com', name: 'Alice' },
+//   { address: 'bob@example.com', name: '' }
 // ]
+
+console.log(addressParser('"Doe, John" <john@example.com>'));
+// [ { address: 'john@example.com', name: 'Doe, John' } ]
+
+console.log(addressParser('user@example.com (John Doe)'));
+// [ { address: 'user@example.com', name: 'John Doe' } ]
 ```
 
-### Address Without Display Name
+A comment is used as the display name when there is no other name.
+
+### Encoded display names
+
+RFC 2047 encoded words in a display name are decoded:
 
 ```javascript
-const addresses = addressParser('user@example.com');
-console.log(addresses);
-// [{ name: '', address: 'user@example.com' }]
+import { addressParser } from 'postal-mime';
+
+console.log(addressParser('=?utf-8?B?44Ko44Od44K544Kr44O844OJ?= <support@example.com>'));
+// [ { address: 'support@example.com', name: 'エポスカード' } ]
 ```
 
-### MIME Encoded Words
-
-Encoded display names are automatically decoded:
+An address is only ever read from the raw header. An encoded word that decodes to something that looks like a mailbox becomes a display name with an empty address (since 4.1.1), because the raw header holds no mailbox that a DMARC verifier could have authenticated:
 
 ```javascript
-const addresses = addressParser(
-    '=?utf-8?B?44Ko44Od44K544Kr44O844OJ?= <support@example.com>'
-);
-console.log(addresses);
-// [{ name: 'エポスカード', address: 'support@example.com' }]
+import { addressParser } from 'postal-mime';
+
+// =?utf-8?B?...?= encodes "Name <name@example.com>"
+console.log(addressParser('=?utf-8?B?TmFtZSA8bmFtZUBleGFtcGxlLmNvbT4=?='));
+// [ { address: '', name: 'Name <name@example.com>' } ]
 ```
 
-### Address Groups
-
-RFC 2822 address groups are supported:
+### Groups
 
 ```javascript
-const addresses = addressParser(
-    'Team: alice@example.com, bob@example.com;'
-);
-console.log(addresses);
-// [{
-//   name: 'Team',
-//   group: [
-//     { name: '', address: 'alice@example.com' },
-//     { name: '', address: 'bob@example.com' }
-//   ]
-// }]
-```
+import { addressParser } from 'postal-mime';
 
-### Flattening Groups
+const header = 'admin@example.com, Support Team: help@example.com, support@example.com;';
 
-Use the `flatten` option to get a flat array of mailboxes:
-
-```javascript
-const addresses = addressParser(
-    'Team: alice@example.com, bob@example.com;',
-    { flatten: true }
-);
-console.log(addresses);
+console.log(addressParser(header));
 // [
-//   { name: '', address: 'alice@example.com' },
-//   { name: '', address: 'bob@example.com' }
-// ]
-```
-
-### Mixed Individual and Group Addresses
-
-```javascript
-const addresses = addressParser(
-    'admin@example.com, Support Team: help@example.com, support@example.com;'
-);
-console.log(addresses);
-// [
-//   { name: '', address: 'admin@example.com' },
+//   { address: 'admin@example.com', name: '' },
 //   {
 //     name: 'Support Team',
 //     group: [
-//       { name: '', address: 'help@example.com' },
-//       { name: '', address: 'support@example.com' }
+//       { address: 'help@example.com', name: '' },
+//       { address: 'support@example.com', name: '' }
 //     ]
 //   }
 // ]
+
+console.log(addressParser(header, { flatten: true }));
+// [
+//   { address: 'admin@example.com', name: '' },
+//   { address: 'help@example.com', name: '' },
+//   { address: 'support@example.com', name: '' }
+// ]
 ```
 
-### Comments in Addresses
+Groups are never nested in the result. RFC 5322 does not allow a group inside a group; when a header has one anyway, the inner group's name is dropped, its members belong to the outer group, and the first `;` closes the group.
 
-RFC 2822 comments are handled:
+## Edge cases
+
+| Input | Result | Notes |
+|-------|--------|-------|
+| `''` | `[]` | |
+| `'not a valid email'` | `[{ address: '', name: 'not a valid email' }]` | Text without an address becomes a name |
+| `'Joe Foo, PhD <joe@example.com>'` | `[{ address: 'joe@example.com', name: 'Joe Foo, PhD' }]` | An entry with only a name, followed by an entry with a name and an address, is merged back into one |
+| `'"user@evil.com"@good.com'` | `[{ address: '"user@evil.com"@good.com', name: '' }]` | A quoted local part keeps its quotes, so the address has one `@` outside quotes to split the domain at |
+| `'user@[IPv6:2001:db8::1]'` | `[{ address: 'user@[IPv6:2001:db8::1]', name: '' }]` | Domain literals are kept intact |
+| `'Name <user@example.com(x)evil.com>'` | `[{ address: 'user@example.com', name: 'Name evil.com' }]` | A comment ends the domain; the text after it is not joined to the address |
+| `'<user@example.com foo>'` | `[{ address: 'user@example.com', name: 'foo' }]` | Text inside the angle brackets that is not the mailbox becomes display text |
+
+The [Security guide](../guides/security#address-extraction-safeguards) explains why these cases are resolved the way they are.
+
+## Common tasks
+
+### Collect every address of a header
 
 ```javascript
-const addresses = addressParser('user@example.com (John Doe)');
-console.log(addresses);
-// [{ name: 'John Doe', address: 'user@example.com' }]
-```
-
-## Type Narrowing
-
-When working with TypeScript, use type guards to narrow between Mailbox and Group:
-
-```typescript
 import { addressParser } from 'postal-mime';
-import type { Address, Mailbox } from 'postal-mime';
 
-function isMailbox(addr: Address): addr is Mailbox {
-    return addr.group === undefined;
-}
-
-const addresses = addressParser(headerValue);
-
-addresses.forEach(addr => {
-    if (isMailbox(addr)) {
-        console.log(`Individual: ${addr.address}`);
-    } else {
-        console.log(`Group "${addr.name}":`);
-        addr.group.forEach(member => {
-            console.log(`  - ${member.address}`);
-        });
-    }
-});
-```
-
-## Edge Cases
-
-### Empty Input
-
-```javascript
-const addresses = addressParser('');
-console.log(addresses); // []
-```
-
-### Invalid Addresses
-
-The parser is lenient and attempts to extract what it can:
-
-```javascript
-const addresses = addressParser('not a valid email');
-console.log(addresses);
-// [{ name: 'not a valid email', address: '' }]
-```
-
-### Quoted Strings
-
-```javascript
-const addresses = addressParser('"Doe, John" <john@example.com>');
-console.log(addresses);
-// [{ name: 'Doe, John', address: 'john@example.com' }]
-```
-
-### Unquoted Commas in Display Names
-
-A display name with an unquoted comma splits the header into two entries. A name-only entry followed by an entry that has both a name and an address is joined back into one:
-
-```javascript
-const addresses = addressParser('Joe Foo, PhD <joe@example.com>');
-console.log(addresses);
-// [{ name: 'Joe Foo, PhD', address: 'joe@example.com' }]
-```
-
-### Quoted Local Parts
-
-A quoted local part keeps its quotes when it holds characters that are not allowed in an unquoted one, so the address always has a single `@` to split the domain off at:
-
-```javascript
-const addresses = addressParser('"user@evil.com"@good.com');
-console.log(addresses);
-// [{ name: '', address: '"user@evil.com"@good.com' }]
-```
-
-### Address Literals
-
-Domain literals, including IPv6 ones, are kept intact:
-
-```javascript
-const addresses = addressParser('user@[IPv6:2001:db8::1]');
-console.log(addresses);
-// [{ name: '', address: 'user@[IPv6:2001:db8::1]' }]
-```
-
-## Common Use Cases
-
-### Extract All Email Addresses
-
-```javascript
 function extractEmails(headerValue) {
-    const addresses = addressParser(headerValue, { flatten: true });
-    return addresses
-        .filter(addr => addr.address)
-        .map(addr => addr.address);
+    return addressParser(headerValue, { flatten: true })
+        .map(addr => addr.address)
+        .filter(Boolean);
 }
 
-const emails = extractEmails('Team: alice@x.com, bob@x.com; admin@x.com');
-// ['alice@x.com', 'bob@x.com', 'admin@x.com']
+console.log(extractEmails('Team: alice@example.com, bob@example.com;, admin@example.com'));
+// [ 'alice@example.com', 'bob@example.com', 'admin@example.com' ]
 ```
 
-### Format for Display
+### Format an address for display
 
 ```javascript
+import { addressParser } from 'postal-mime';
+
 function formatAddress(addr) {
     if (addr.group) {
-        const members = addr.group.map(formatAddress).join(', ');
-        return `${addr.name}: ${members}`;
+        return `${addr.name}: ${addr.group.map(formatAddress).join(', ')};`;
     }
     return addr.name ? `${addr.name} <${addr.address}>` : addr.address;
 }
 
-const addresses = addressParser(headerValue);
-const formatted = addresses.map(formatAddress);
+console.log(addressParser('Alice <alice@example.com>, Team: bob@example.com;').map(formatAddress).join(', '));
+// Alice <alice@example.com>, Team: bob@example.com;
 ```
 
 ## TypeScript
 
 ```typescript
 import { addressParser } from 'postal-mime';
-import type { Address, Mailbox, AddressParserOptions } from 'postal-mime';
+import type { Address, AddressParserOptions, Mailbox } from 'postal-mime';
 
-const options: AddressParserOptions = { flatten: true };
-const addresses: Address[] = addressParser(headerValue, options);
-
-// Type guard for mailbox
 function isMailbox(addr: Address): addr is Mailbox {
     return addr.group === undefined;
 }
+
+const options: AddressParserOptions = { flatten: true };
+const mailboxes: Mailbox[] = addressParser('Team: a@example.com, b@example.com;', options).filter(isMailbox);
+console.log(mailboxes.map(m => m.address)); // [ 'a@example.com', 'b@example.com' ]
 ```
 
 ## See Also
 
-- [PostalMime](./postal-mime) - Main parsing class
-- [decodeWords()](./decode-words) - Decode MIME encoded words
-- [Types](./types) - TypeScript type definitions
+- [Email Object](./email#addresses) - The address properties of a parsed message
+- [decodeWords()](./decode-words) - Decode encoded words in other headers
+- [Security](../guides/security#address-extraction-safeguards) - How the parser resists address spoofing
+- [Types](./types) - The `Address`, `Mailbox` and `AddressGroup` types

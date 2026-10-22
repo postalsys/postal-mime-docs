@@ -1,393 +1,279 @@
 ---
+title: Working with Attachments
 sidebar_position: 2
+description: How to read, filter, save and display email attachments parsed by postal-mime, including inline images, calendar invites and nested messages.
 ---
 
 # Working with Attachments
 
 <img src="/img/mascot/attachments.png" alt="postal-mime mascot with attachments" className="mascot-header" />
 
-This guide covers how to extract, process, and work with email attachments using postal-mime.
+Every part of a message that does not end up in `text` or `html` is listed in `email.attachments`. This guide covers the common tasks. The properties of an attachment are documented in [Attachment object](../api/email#attachment-object).
 
-## Understanding Attachments
-
-postal-mime automatically handles RFC 2231 parameter value continuations, which are used for long filenames that span multiple header lines. You don't need to do anything special - filenames are automatically reassembled.
-
-Attachments in postal-mime are returned as an array of objects with the following properties:
-
-```javascript
-{
-    filename: string | null,       // Original filename (may be null)
-    mimeType: string,              // MIME type (e.g., "application/pdf")
-    disposition: string | null,    // "attachment", "inline", or null
-    related?: boolean,             // true if inline image (optional)
-    contentId?: string,            // Content-ID for inline images (optional)
-    description?: string,          // Content-Description header (optional)
-    content: ArrayBuffer | Uint8Array | string, // File content
-    encoding?: string,             // "base64" or "utf8" if converted (optional)
-    method?: string,               // Calendar method for ICS files (optional)
-    rfc822DepthExceeded?: boolean  // true for a nested message that was not parsed (optional)
-}
-```
-
-### Attachment Content
-
-`content` holds the decoded bytes of the part exactly as they were sent, whatever the transfer encoding: a `7bit`, `8bit` or `binary` part keeps its line endings byte for byte, a `quoted-printable` part comes out with the bytes it had before encoding, and a base64 part with the bytes that were encoded. The line break in front of a multipart boundary belongs to the boundary (RFC 2046), so it is not part of the content. Calendar parts are the exception, see [Calendar Attachments](#calendar-attachments).
-
-## Basic Attachment Access
+## Listing attachments
 
 ```javascript
 import PostalMime from 'postal-mime';
 
-const email = await PostalMime.parse(rawEmail);
+const email = await PostalMime.parse(`Subject: Files
+Content-Type: multipart/mixed; boundary="b"
 
-console.log(`Found ${email.attachments.length} attachments`);
+--b
+Content-Type: text/plain
 
-email.attachments.forEach((attachment, index) => {
-    console.log(`Attachment ${index + 1}:`);
-    console.log(`  Filename: ${attachment.filename}`);
-    console.log(`  Type: ${attachment.mimeType}`);
-    console.log(`  Size: ${attachment.content.byteLength} bytes`);
-});
+Two files attached.
+--b
+Content-Type: application/pdf; name="report.pdf"
+Content-Disposition: attachment; filename="report.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQK
+--b
+Content-Type: image/png
+Content-Disposition: inline; filename="chart.png"
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgo=
+--b--
+`);
+
+for (const att of email.attachments) {
+    console.log(att.filename, att.mimeType, att.disposition, att.content.byteLength);
+}
+// report.pdf application/pdf attachment 9
+// chart.png image/png inline 8
 ```
 
-## Attachment Types
+`disposition` is the Content-Disposition type as the message gives it, usually `"attachment"` or `"inline"`, or `null` when the part has none. `filename` is `null` when the part names no file.
 
-### Regular Attachments
+## Content types
 
-Standard file attachments have `disposition: "attachment"`:
+`content` holds the decoded bytes exactly as they were sent. Its type depends on the [`attachmentEncoding`](../api/options#attachmentencoding) option:
+
+| `attachmentEncoding` | `content` | Use it when |
+|----------------------|-----------|-------------|
+| `'arraybuffer'` (default) | `ArrayBuffer` (`Uint8Array` for calendar parts) | You write, hash or upload the bytes |
+| `'base64'` | base64 `string` | You build data URLs or send the content as JSON |
+| `'utf8'` | `string` | Every attachment is known to be UTF-8 text |
 
 ```javascript
-const regularAttachments = email.attachments.filter(
-    att => att.disposition === 'attachment'
-);
+import PostalMime from 'postal-mime';
+
+const raw = `Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: text/plain
+
+See attached.
+--b
+Content-Type: text/plain; name="note.txt"
+Content-Disposition: attachment; filename="note.txt"
+
+Attached note
+--b--
+`;
+
+const asBytes = await PostalMime.parse(raw);
+console.log(new Uint8Array(asBytes.attachments[0].content)); // Uint8Array(13) [ 65, 116, ... ]
+
+const asBase64 = await PostalMime.parse(raw, { attachmentEncoding: 'base64' });
+console.log(asBase64.attachments[0].content); // "QXR0YWNoZWQgbm90ZQ=="
+
+const asText = await PostalMime.parse(raw, { attachmentEncoding: 'utf8' });
+console.log(asText.attachments[0].content); // "Attached note"
 ```
 
-### Inline Attachments
+With the default encoding, `content.byteLength` is the size of the attachment in bytes for both `ArrayBuffer` and `Uint8Array` content. A string has no `byteLength`, so size checks belong before any conversion to base64 or text.
 
-Inline attachments (like embedded images) have `disposition: "inline"`:
+## Filtering
 
 ```javascript
-const inlineAttachments = email.attachments.filter(
-    att => att.disposition === 'inline'
-);
+// Files the sender attached, as opposed to images embedded in the HTML
+const files = email.attachments.filter(att => !att.related);
+
+// By type
+const images = email.attachments.filter(att => att.mimeType.startsWith('image/'));
+const pdfs = email.attachments.filter(att => att.mimeType === 'application/pdf');
+
+// By size, with the default arraybuffer encoding
+const large = email.attachments.filter(att => att.content.byteLength > 5 * 1024 * 1024);
 ```
 
-### Related Attachments
+The MIME type and the file name are chosen by the sender. Check the content itself, for example its magic bytes, before trusting either. See [Validate attachment types](./security#3-validate-attachment-types).
 
-Parts that sit inside a `multipart/related` tree and carry a Content-ID, which is how images referenced from HTML are embedded, are marked with `related: true`:
+## Saving attachments in Node.js
 
-```javascript
-const relatedImages = email.attachments.filter(att => att.related);
-
-// These can be referenced in HTML via their contentId
-relatedImages.forEach(img => {
-    console.log(`CID: ${img.contentId}`);
-    // Referenced in HTML as: <img src="cid:${img.contentId}">
-});
-```
-
-## Encoding Options
-
-### ArrayBuffer (Default)
-
-By default, attachment content is returned as `ArrayBuffer`:
+Never use `filename` as a path as it is: it can contain `../`, absolute paths or control characters. Reduce it to a safe base name and write it inside a directory you control:
 
 ```javascript
-const email = await PostalMime.parse(rawEmail);
-const attachment = email.attachments[0];
+import PostalMime from 'postal-mime';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 
-// Convert to Uint8Array for processing
-const bytes = new Uint8Array(attachment.content);
-```
+function safeFilename(filename, index) {
+    // Drop any directory part, then replace everything outside a conservative set
+    const name = basename(String(filename || '').replace(/\\/g, '/'))
+        .replace(/[^\w.-]/g, '_')
+        .replace(/^\.+/, '');
+    return name || `attachment-${index}`;
+}
 
-### Base64 Encoding
+const email = await PostalMime.parse(await readFile('message.eml'));
 
-Use `attachmentEncoding: 'base64'` to get base64-encoded strings:
+const directory = './attachments';
+await mkdir(directory, { recursive: true });
 
-```javascript
-const email = await PostalMime.parse(rawEmail, {
-    attachmentEncoding: 'base64'
-});
-
-const attachment = email.attachments[0];
-console.log(attachment.content);   // Base64 string
-console.log(attachment.encoding);  // "base64"
-
-// Create data URL for images
-if (attachment.mimeType.startsWith('image/')) {
-    const dataUrl = `data:${attachment.mimeType};base64,${attachment.content}`;
+for (const [index, att] of email.attachments.entries()) {
+    // content is an ArrayBuffer or, for calendar parts, a Uint8Array
+    const filepath = join(directory, `${index}-${safeFilename(att.filename, index)}`);
+    await writeFile(filepath, new Uint8Array(att.content));
+    console.log('Saved', filepath);
 }
 ```
 
-### UTF-8 Encoding
+The index prefix keeps two attachments with the same name from overwriting each other.
 
-Use `attachmentEncoding: 'utf8'` for text-based attachments:
-
-```javascript
-const email = await PostalMime.parse(rawEmail, {
-    attachmentEncoding: 'utf8'
-});
-
-const textAttachment = email.attachments.find(
-    att => att.mimeType === 'text/plain'
-);
-console.log(textAttachment.content); // UTF-8 string
-```
-
-## Saving Attachments
-
-### Browser - File Download
+## Downloading attachments in the browser
 
 ```javascript
-function downloadAttachment(attachment) {
-    const blob = new Blob([attachment.content], {
-        type: attachment.mimeType
-    });
+function downloadAttachment(att) {
+    const blob = new Blob([att.content], { type: att.mimeType });
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = attachment.filename || 'attachment';
+    // The browser sanitizes the download name, but strip directory parts anyway
+    link.download = (att.filename || 'attachment').split(/[/\\]/).pop();
     link.click();
 
-    URL.revokeObjectURL(url);
-}
-
-// Download all attachments
-email.attachments.forEach(downloadAttachment);
-```
-
-### Node.js - Save to Disk
-
-```javascript
-import { writeFile } from 'fs/promises';
-
-async function saveAttachment(attachment, directory = './attachments') {
-    const filename = attachment.filename || 'attachment';
-    const filepath = `${directory}/${filename}`;
-
-    await writeFile(filepath, Buffer.from(attachment.content));
-    console.log(`Saved: ${filepath}`);
-}
-
-for (const attachment of email.attachments) {
-    await saveAttachment(attachment);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 ```
 
-## Displaying Inline Images
+## Displaying inline images
 
-Replace CID references in HTML with data URLs:
-
-```javascript
-function replaceInlineImages(html, attachments) {
-    let processedHtml = html;
-
-    const inlineImages = attachments.filter(
-        att => att.related && att.contentId
-    );
-
-    for (const img of inlineImages) {
-        // Remove angle brackets from contentId
-        const cid = img.contentId.replace(/^<|>$/g, '');
-
-        // Convert to base64 data URL
-        const bytes = new Uint8Array(img.content);
-        const base64 = btoa(String.fromCharCode(...bytes));
-        const dataUrl = `data:${img.mimeType};base64,${base64}`;
-
-        // Replace all CID references
-        processedHtml = processedHtml.replace(
-            new RegExp(`cid:${cid}`, 'gi'),
-            dataUrl
-        );
-    }
-
-    return processedHtml;
-}
-
-const htmlWithImages = replaceInlineImages(email.html, email.attachments);
-```
-
-## Filtering Attachments
-
-### By MIME Type
+An image embedded in an HTML message sits in a `multipart/related` part with a Content-ID, and the HTML refers to it as `cid:<content-id>`. Such attachments have `related: true`. To show them, replace the `cid:` references with data URLs. Parse with `attachmentEncoding: 'base64'` so the content is ready for a data URL:
 
 ```javascript
-// Get all images
-const images = email.attachments.filter(
-    att => att.mimeType.startsWith('image/')
-);
+import PostalMime from 'postal-mime';
 
-// Get all PDFs
-const pdfs = email.attachments.filter(
-    att => att.mimeType === 'application/pdf'
-);
-
-// Get all text files
-const textFiles = email.attachments.filter(
-    att => att.mimeType.startsWith('text/')
-);
-```
-
-### By File Extension
-
-```javascript
-function getExtension(filename) {
-    if (!filename) return '';
-    const parts = filename.split('.');
-    return parts.length > 1 ? parts.pop().toLowerCase() : '';
-}
-
-const spreadsheets = email.attachments.filter(att => {
-    const ext = getExtension(att.filename);
-    return ['xlsx', 'xls', 'csv'].includes(ext);
-});
-```
-
-### By Size
-
-```javascript
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-
-const largeAttachments = email.attachments.filter(
-    att => att.content.byteLength > MAX_SIZE
-);
-
-const smallAttachments = email.attachments.filter(
-    att => att.content.byteLength <= MAX_SIZE
-);
-```
-
-## Calendar Attachments
-
-Calendar events (ICS files) receive special handling:
-
-- Content is decoded to UTF-8 text
-- Line endings are normalized to `\n` (LF)
-- The `method` parameter is extracted from the Content-Type header
-- Content is returned as `Uint8Array` (not `ArrayBuffer`)
-
-```javascript
-const calendarEvents = email.attachments.filter(
-    att => att.mimeType === 'text/calendar' ||
-           att.mimeType === 'application/ics'
-);
-
-calendarEvents.forEach(event => {
-    console.log(`Calendar event method: ${event.method}`);
-    // event.method can be "REQUEST", "REPLY", "CANCEL", etc.
-
-    // Content is already normalized UTF-8 as Uint8Array
-    const decoder = new TextDecoder();
-    const icsContent = decoder.decode(event.content);
-    console.log(icsContent);
-});
-```
-
-:::tip
-The `method` property indicates the calendar action: `REQUEST` for meeting invitations, `REPLY` for responses, `CANCEL` for cancellations, and `PUBLISH` for published events.
-:::
-
-#### Parsing ICS Content
-
-```javascript
-calendarEvents.forEach(event => {
-    const decoder = new TextDecoder();
-    const icsContent = decoder.decode(event.content);
-
-    // Extract key properties from ICS
-    const summary = icsContent.match(/SUMMARY:(.*)/)?.[1];
-    const dtstart = icsContent.match(/DTSTART[^:]*:(.*)/)?.[1];
-    const dtend = icsContent.match(/DTEND[^:]*:(.*)/)?.[1];
-    const location = icsContent.match(/LOCATION:(.*)/)?.[1];
-
-    console.log(`Event: ${summary}`);
-    console.log(`Start: ${dtstart}`);
-    console.log(`End: ${dtend}`);
-    console.log(`Location: ${location}`);
-    console.log(`Action: ${event.method}`);
-    // event.method: "REQUEST", "REPLY", "CANCEL", "PUBLISH"
-});
-```
-
-## Nested Messages
-
-A `message/rfc822` part is parsed inline by default, so its text, HTML and attachments are merged into the parent. It shows up as an attachment instead when it has `Content-Disposition: attachment`, when the `rfc822Attachments` or `forceRfc822Attachments` option is set, when the message is a delivery report, or when it is nested deeper than `maxRfc822NestingDepth` allows. In the last case the attachment carries `rfc822DepthExceeded: true`, and nothing inside it is reflected in the parent.
-
-```javascript
-for (const attachment of email.attachments) {
-    if (attachment.mimeType === 'message/rfc822') {
-        // pass the raw bytes, not a decoded string, so the charset survives
-        const nested = await PostalMime.parse(attachment.content);
-        console.log('Nested subject:', nested.subject);
-
-        if (attachment.rfc822DepthExceeded) {
-            // the parser skipped this one because it was nested too deeply,
-            // so bound how many levels you follow yourself
+function inlineImages(html, attachments) {
+    const urls = new Map();
+    for (const att of attachments) {
+        if (att.related && att.contentId && att.encoding === 'base64') {
+            // contentId keeps its angle brackets, the cid: URL does not
+            const cid = att.contentId.replace(/^<|>$/g, '').toLowerCase();
+            urls.set(cid, `data:${att.mimeType};base64,${att.content}`);
         }
     }
+    // Look each reference up instead of building a RegExp from the sender's Content-ID
+    return html.replace(/cid:([^"'\s)>]+)/gi, (match, cid) => urls.get(cid.toLowerCase()) || match);
 }
+
+const email = await PostalMime.parse(
+    `Content-Type: multipart/related; boundary="b"
+
+--b
+Content-Type: text/html
+
+<p><img src="cid:logo@example.com"></p>
+--b
+Content-Type: image/png
+Content-ID: <logo@example.com>
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgo=
+--b--
+`,
+    { attachmentEncoding: 'base64' }
+);
+
+console.log(inlineImages(email.html, email.attachments));
+// <p><img src="data:image/png;base64,iVBORw0KGgo="></p>
 ```
 
-## Complete Attachment Handler
+The result is still the sender's HTML. Render it in a sandboxed iframe or sanitize it, see [Sanitize HTML content](./security#5-sanitize-html-content).
+
+## Calendar invites
+
+`text/calendar` and `application/ics` parts are attachments, never part of `text`. postal-mime normalizes them to UTF-8 text with LF line endings, and sets `method` to the uppercased `method` parameter of the Content-Type, such as `REQUEST`, `REPLY`, `CANCEL` or `PUBLISH`. With the default encoding, `content` is a `Uint8Array`:
 
 ```javascript
-class AttachmentHandler {
-    constructor(email) {
-        this.attachments = email.attachments;
-    }
+import PostalMime from 'postal-mime';
 
-    getAll() {
-        return this.attachments;
-    }
+const email = await PostalMime.parse(`Subject: Invitation
+Content-Type: multipart/mixed; boundary="b"
 
-    getByType(mimeType) {
-        return this.attachments.filter(att =>
-            att.mimeType === mimeType
-        );
-    }
+--b
+Content-Type: text/plain
 
-    getImages() {
-        return this.attachments.filter(att =>
-            att.mimeType.startsWith('image/')
-        );
-    }
+You are invited.
+--b
+Content-Type: text/calendar; method=REQUEST; charset=utf-8
 
-    getInlineImages() {
-        return this.attachments.filter(att =>
-            att.related && att.mimeType.startsWith('image/')
-        );
-    }
+BEGIN:VCALENDAR\r
+METHOD:REQUEST\r
+BEGIN:VEVENT\r
+SUMMARY:Planning\r
+DTSTART:20240115T103000Z\r
+END:VEVENT\r
+END:VCALENDAR\r
+--b--
+`);
 
-    getDocuments() {
-        const docTypes = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument'
-        ];
-        return this.attachments.filter(att =>
-            docTypes.some(type => att.mimeType.startsWith(type))
-        );
-    }
+const invite = email.attachments.find(att => att.mimeType === 'text/calendar');
+console.log(invite.method); // "REQUEST"
 
-    getTotalSize() {
-        return this.attachments.reduce(
-            (total, att) => total + att.content.byteLength,
-            0
-        );
-    }
+const ics = new TextDecoder().decode(invite.content);
+console.log(ics.match(/^SUMMARY:(.*)$/m)?.[1]); // "Planning"
+```
 
-    toDataUrl(attachment) {
-        const bytes = new Uint8Array(attachment.content);
-        const base64 = btoa(String.fromCharCode(...bytes));
-        return `data:${attachment.mimeType};base64,${base64}`;
+The regular expression above is enough for a quick look. iCalendar folds long lines and escapes special characters, so use an iCalendar parser to read events reliably.
+
+## Nested messages
+
+A `message/rfc822` part is parsed inline by default, and only shows up in `attachments` when:
+
+- it has a Content-Disposition other than `inline`, such as `attachment`,
+- the `rfc822Attachments` or `forceRfc822Attachments` [option](../api/options#classification-options) applies,
+- the message is a bounce or an abuse report, or
+- it is nested deeper than [`maxRfc822NestingDepth`](../api/options#maxrfc822nestingdepth) allows, in which case it carries `rfc822DepthExceeded: true`.
+
+Parse its `content` to read it. Pass the bytes, not a decoded string, so that a message in another charset stays intact:
+
+```javascript
+import PostalMime from 'postal-mime';
+
+const email = await PostalMime.parse(`Subject: Fwd
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: text/plain
+
+Forwarding as an attachment.
+--b
+Content-Type: message/rfc822
+Content-Disposition: attachment; filename="original.eml"
+
+Subject: Original
+
+Original body
+--b--
+`);
+
+for (const att of email.attachments) {
+    if (att.mimeType === 'message/rfc822') {
+        const nested = await PostalMime.parse(att.content);
+        console.log(att.filename, nested.subject); // original.eml Original
     }
 }
-
-// Usage
-const handler = new AttachmentHandler(email);
-console.log(`Total attachment size: ${handler.getTotalSize()} bytes`);
-console.log(`Images: ${handler.getImages().length}`);
-console.log(`Documents: ${handler.getDocuments().length}`);
 ```
+
+When you follow nested messages yourself, bound how many levels you follow, as the parser does.
+
+## See Also
+
+- [Attachment object](../api/email#attachment-object) - Every attachment property
+- [Parser Options](../api/options) - `attachmentEncoding` and the options that classify nested messages
+- [Security](./security) - Untrusted file names, types and sizes
+- [Email Viewer example](../examples/email-viewer) - Showing a message with its attachments in a page

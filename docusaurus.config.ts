@@ -50,6 +50,20 @@ const config: Config = {
     },
   ],
 
+  plugins: [
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          {
+            from: '/docs/getting-started/configuration',
+            to: '/docs/api/options',
+          },
+        ],
+      },
+    ],
+  ],
+
   presets: [
     [
       'classic',

@@ -1,154 +1,129 @@
 ---
+title: Quick Start
 sidebar_position: 2
+description: Parse a first email with postal-mime and read its sender, recipients, subject, body and attachments.
 ---
 
 # Quick Start
 
 <img src="/img/mascot/carrying.png" alt="postal-mime mascot carrying emails" className="mascot-header" />
 
-This guide will help you parse your first email with postal-mime in just a few minutes.
+This page parses a message and reads the most used properties of the result. It assumes postal-mime is [installed](./installation).
 
-## Basic Usage
+## Parse a message
 
-The simplest way to parse an email is using the static `PostalMime.parse()` method:
+`PostalMime.parse()` takes the raw message and returns a promise of the parsed [`Email`](../api/email) object:
 
 ```javascript
 import PostalMime from 'postal-mime';
 
-const rawEmail = `From: sender@example.com
-To: recipient@example.com
+const email = await PostalMime.parse(`From: Alice <alice@example.com>
+To: bob@example.com
 Subject: Hello World
-Content-Type: text/plain
+Date: Mon, 15 Jan 2024 10:30:00 +0000
+Content-Type: text/plain; charset=utf-8
 
-This is the email body.`;
+This is the email body.`);
 
-const email = await PostalMime.parse(rawEmail);
-
-console.log(email.from);    // { name: '', address: 'sender@example.com' }
+console.log(email.from);    // { address: 'alice@example.com', name: 'Alice' }
+console.log(email.to);      // [ { address: 'bob@example.com', name: '' } ]
 console.log(email.subject); // "Hello World"
+console.log(email.date);    // "2024-01-15T10:30:00.000Z"
 console.log(email.text);    // "This is the email body.\n"
 ```
 
-## Understanding the Email Object
-
-The parsed email object contains all the information from the message:
+The raw message can be a string, an `ArrayBuffer`, a `Uint8Array` or Node.js `Buffer`, a `Blob` or `File`, or a `ReadableStream`. When you read a message from a file or the network, pass the bytes rather than a decoded string, so that text in other charsets is decoded correctly:
 
 ```javascript
-const email = await PostalMime.parse(rawEmail);
+import PostalMime from 'postal-mime';
+import { readFile } from 'node:fs/promises';
 
-// Headers
-console.log(email.headers);     // Array of all headers, in message order
-console.log(email.headerLines); // Raw header lines, in the same order
-
-// Sender information
-console.log(email.from);        // From address
-console.log(email.sender);      // Sender address (if different)
-console.log(email.replyTo);     // Reply-To addresses
-
-// Recipients
-console.log(email.to);          // To addresses (array)
-console.log(email.cc);          // CC addresses (array)
-console.log(email.bcc);         // BCC addresses (array)
-console.log(email.deliveredTo); // Delivered-To address (string)
-console.log(email.returnPath);  // Return-Path address (string)
-
-// Message identifiers
-console.log(email.messageId);   // Message-ID header
-console.log(email.inReplyTo);   // In-Reply-To header
-console.log(email.references);  // References header
-
-// Content
-console.log(email.subject);     // Subject line
-console.log(email.date);        // Date in ISO 8601 format
-console.log(email.text);        // Plain text content
-console.log(email.html);        // HTML content
-
-// Attachments
-console.log(email.attachments); // Array of attachments
+const email = await PostalMime.parse(await readFile('message.eml'));
+console.log(email.subject);
 ```
 
-## Parsing HTML Emails
+## What the result holds
 
-postal-mime extracts content based on what is present in the email:
+| Property | Holds |
+|----------|-------|
+| `from`, `sender` | A single address object |
+| `to`, `cc`, `bcc`, `replyTo` | Arrays of address objects |
+| `subject` | The decoded subject |
+| `date` | The date as an ISO 8601 string |
+| `messageId`, `inReplyTo`, `references` | Threading headers |
+| `text`, `html` | The plain text and HTML bodies |
+| `attachments` | Every part that is not part of the body |
+| `headers`, `headerLines` | Every header, parsed and raw |
+
+Properties other than `headers`, `headerLines` and `attachments` are left out when the message has no value for them. The [Email Object](../api/email) page documents each one.
+
+## Text and HTML
+
+`text` and `html` are filled from the parts the message has. A message with only an HTML part has no `text`:
 
 ```javascript
-const htmlEmail = `Subject: Newsletter
+import PostalMime from 'postal-mime';
+
+const email = await PostalMime.parse(`Subject: Newsletter
 Content-Type: text/html; charset=utf-8
 
 <h1>Welcome!</h1>
-<p>Thanks for subscribing.</p>`;
+<p>Thanks for subscribing.</p>`);
 
-const email = await PostalMime.parse(htmlEmail);
-
-console.log(email.html); // "<h1>Welcome!</h1>\n<p>Thanks for subscribing.</p>"
-console.log(email.text); // undefined (only HTML was provided)
+console.log(email.html); // "<h1>Welcome!</h1>\n<p>Thanks for subscribing.</p>\n"
+console.log(email.text); // undefined
 ```
 
-:::note
-For single-part emails, only the format present in the message is returned. If the email contains only HTML, `email.text` will be `undefined`, and vice versa. Both `text` and `html` are available when the email uses `multipart/alternative` to provide both formats.
+A `multipart/alternative` message usually carries both. See [Text and HTML](../api/email#text-and-html) for how a body made of several parts is assembled.
+
+:::warning
+`html` is the sender's markup and is not sanitized. Sanitize it or render it in a sandboxed iframe before showing it, see the [Security guide](../guides/security#5-sanitize-html-content).
 :::
 
-## Parsing Emails with Attachments
-
-Attachments are automatically extracted:
+## Attachments
 
 ```javascript
-const email = await PostalMime.parse(emailWithAttachments);
+import PostalMime from 'postal-mime';
+
+const email = await PostalMime.parse(`Subject: Report
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: text/plain
+
+The report is attached.
+--b
+Content-Type: text/csv; name="report.csv"
+Content-Disposition: attachment; filename="report.csv"
+
+month,total
+--b--
+`);
 
 for (const attachment of email.attachments) {
-    console.log(attachment.filename);    // "document.pdf"
-    console.log(attachment.mimeType);    // "application/pdf"
-    console.log(attachment.disposition); // "attachment" or "inline"
-    console.log(attachment.content);     // ArrayBuffer with file content (Uint8Array for calendar parts)
+    console.log(attachment.filename);           // "report.csv"
+    console.log(attachment.mimeType);           // "text/csv"
+    console.log(attachment.disposition);        // "attachment"
+    console.log(attachment.content.byteLength); // 11
 }
 ```
 
-## Input Formats
+`content` is an `ArrayBuffer` by default. The [`attachmentEncoding`](../api/options#attachmentencoding) option returns it as a base64 or UTF-8 string instead.
 
-postal-mime accepts multiple input formats:
-
-```javascript
-// String input
-const email1 = await PostalMime.parse(emailString);
-
-// ArrayBuffer
-const email2 = await PostalMime.parse(arrayBuffer);
-
-// Uint8Array
-const email3 = await PostalMime.parse(uint8Array);
-
-// Blob (browser)
-const email4 = await PostalMime.parse(blob);
-
-// Buffer (Node.js)
-const email5 = await PostalMime.parse(buffer);
-
-// ReadableStream
-const email6 = await PostalMime.parse(readableStream);
-
-// Any other ArrayBufferView, such as a DataView
-const email7 = await PostalMime.parse(dataView);
-```
-
-## TypeScript Example
+## TypeScript
 
 ```typescript
 import PostalMime from 'postal-mime';
-import type { Email, Attachment } from 'postal-mime';
+import type { Email } from 'postal-mime';
 
-const email: Email = await PostalMime.parse(rawEmail);
-
-// Type-safe access to properties
-const subject: string | undefined = email.subject;
-
-// Working with attachments
-email.attachments.forEach((att: Attachment) => {
-    console.log(att.filename, att.mimeType);
-});
+const email: Email = await PostalMime.parse('Subject: Hello\n\nHi there');
+const subject: string = email.subject ?? '(no subject)';
+console.log(subject);
 ```
 
-## Next Steps
+## See Also
 
-- [Configuration](./configuration) - Learn about parsing options
-- [Parsing Emails](../guides/parsing-emails) - Deep dive into email parsing
-- [Working with Attachments](../guides/working-with-attachments) - Handle email attachments
+- [Parsing Emails](../guides/parsing-emails) - Input types, headers, addresses and nested messages
+- [Working with Attachments](../guides/working-with-attachments) - Saving, filtering and displaying attachments
+- [Parser Options](../api/options) - Attachment encoding and security limits
+- [Email Object](../api/email) - Every property of the result

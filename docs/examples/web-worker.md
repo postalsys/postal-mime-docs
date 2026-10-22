@@ -1,436 +1,224 @@
 ---
+title: Web Worker
 sidebar_position: 2
+description: Parse emails with postal-mime in a Web Worker so large messages do not block the page, with a worker pool and zero-copy transfer of attachments.
 ---
 
 # Web Worker
 
 <img src="/img/mascot/routing.png" alt="postal-mime mascot routing" className="mascot-header" />
 
-Use postal-mime in Web Workers for background email processing without blocking the main thread.
+Parsing runs on the thread that calls it. A large message, or many messages, can keep the main thread busy long enough to freeze a page, so a browser application can move parsing into a Web Worker. postal-mime needs nothing but `TextDecoder`, `Blob` and `ReadableStream`, which workers have.
 
-## Why Use Web Workers?
+## A parsing worker
 
-- **Non-blocking UI**: Parse large emails without freezing the interface
-- **Parallel processing**: Parse multiple emails simultaneously
-- **Better performance**: Utilize multiple CPU cores
-
-## Basic Web Worker Setup
-
-### Worker File (email-worker.js)
-
-```javascript
-import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
-
-self.onmessage = async function(event) {
-    const { id, rawEmail, options } = event.data;
-
-    try {
-        const email = await PostalMime.parse(rawEmail, options);
-
-        self.postMessage({
-            id,
-            success: true,
-            email: {
-                from: email.from,
-                to: email.to,
-                subject: email.subject,
-                date: email.date,
-                text: email.text,
-                html: email.html,
-                attachments: email.attachments.map(att => ({
-                    filename: att.filename,
-                    mimeType: att.mimeType,
-                    size: att.content.byteLength
-                }))
-            }
-        });
-    } catch (error) {
-        self.postMessage({
-            id,
-            success: false,
-            error: error.message
-        });
-    }
-};
-```
-
-:::note
-The worker above loads the ES module build straight from `node_modules`, which works without any build step. When the worker is bundled (see [Using with Bundlers](#using-with-bundlers)), import from `'postal-mime'` instead.
-:::
-
-### Main Thread Usage
-
-```javascript
-const worker = new Worker('./email-worker.js', { type: 'module' });
-
-let requestId = 0;
-const pending = new Map();
-
-worker.onmessage = function(event) {
-    const { id, success, email, error } = event.data;
-    const resolver = pending.get(id);
-
-    if (resolver) {
-        pending.delete(id);
-        if (success) {
-            resolver.resolve(email);
-        } else {
-            resolver.reject(new Error(error));
-        }
-    }
-};
-
-function parseEmailInWorker(rawEmail, options = {}) {
-    return new Promise((resolve, reject) => {
-        const id = ++requestId;
-        pending.set(id, { resolve, reject });
-
-        worker.postMessage({
-            id,
-            rawEmail,
-            options
-        });
-    });
-}
-
-// Usage
-const email = await parseEmailInWorker(rawEmailData);
-console.log('Parsed in worker:', email.subject);
-```
-
-## Worker Pool for Parallel Processing
-
-### WorkerPool Class
-
-```javascript
-class EmailParserPool {
-    constructor(workerCount = navigator.hardwareConcurrency || 4) {
-        this.workers = [];
-        this.queue = [];
-        this.requestId = 0;
-        this.pending = new Map();
-
-        for (let i = 0; i < workerCount; i++) {
-            this.createWorker();
-        }
-    }
-
-    createWorker() {
-        const worker = new Worker('./email-worker.js', { type: 'module' });
-
-        worker.onmessage = (event) => {
-            const { id, success, email, error } = event.data;
-            const resolver = this.pending.get(id);
-
-            if (resolver) {
-                this.pending.delete(id);
-                if (success) {
-                    resolver.resolve(email);
-                } else {
-                    resolver.reject(new Error(error));
-                }
-            }
-
-            // Process next item in queue
-            this.processQueue(worker);
-        };
-
-        worker.busy = false;
-        this.workers.push(worker);
-    }
-
-    processQueue(worker) {
-        const task = this.queue.shift();
-        if (task) {
-            worker.busy = true;
-            worker.postMessage(task);
-        } else {
-            worker.busy = false;
-        }
-    }
-
-    parse(rawEmail, options = {}) {
-        return new Promise((resolve, reject) => {
-            const id = ++this.requestId;
-            this.pending.set(id, { resolve, reject });
-
-            const task = { id, rawEmail, options };
-
-            // Find available worker
-            const availableWorker = this.workers.find(w => !w.busy);
-            if (availableWorker) {
-                availableWorker.busy = true;
-                availableWorker.postMessage(task);
-            } else {
-                this.queue.push(task);
-            }
-        });
-    }
-
-    async parseMany(emails, options = {}) {
-        return Promise.all(
-            emails.map(email => this.parse(email, options))
-        );
-    }
-
-    terminate() {
-        this.workers.forEach(worker => worker.terminate());
-        this.workers = [];
-    }
-}
-
-// Usage
-const pool = new EmailParserPool(4);
-
-// Parse single email
-const email = await pool.parse(rawEmail);
-
-// Parse multiple emails in parallel
-const emails = await pool.parseMany([email1, email2, email3, email4]);
-
-// Cleanup when done
-pool.terminate();
-```
-
-## Handling Attachments
-
-Attachments require special handling when transferring between worker and main thread.
-
-### Transferable Objects
-
-```javascript
-// Worker: Transfer attachment ArrayBuffers efficiently
-self.onmessage = async function(event) {
-    const { id, rawEmail } = event.data;
-
-    const email = await PostalMime.parse(rawEmail);
-
-    // Collect transferable buffers
-    const transfers = [];
-    const attachments = email.attachments.map(att => {
-        if (att.content instanceof ArrayBuffer) {
-            transfers.push(att.content);
-        }
-        return {
-            filename: att.filename,
-            mimeType: att.mimeType,
-            disposition: att.disposition,
-            contentId: att.contentId,
-            content: att.content
-        };
-    });
-
-    // Use transferable objects for better performance
-    self.postMessage({
-        id,
-        success: true,
-        email: {
-            ...email,
-            attachments
-        }
-    }, transfers);
-};
-```
-
-### Base64 Encoding Alternative
-
-For simpler transfer at slight performance cost:
-
-```javascript
-// Worker: Use base64 encoding
-self.onmessage = async function(event) {
-    const { id, rawEmail } = event.data;
-
-    const email = await PostalMime.parse(rawEmail, {
-        attachmentEncoding: 'base64'
-    });
-
-    // Attachments are now base64 strings, easily transferable
-    self.postMessage({
-        id,
-        success: true,
-        email
-    });
-};
-```
-
-## Progress Reporting
-
-For large emails, report parsing progress:
-
-### Worker with Progress
+`email-worker.js` parses each message it receives and sends the result back. The result of `PostalMime.parse()` is plain data, so it survives the structured clone that `postMessage()` performs.
 
 ```javascript
 // email-worker.js
 import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
 
-self.onmessage = async function(event) {
+self.onmessage = async event => {
     const { id, rawEmail, options } = event.data;
-
-    // Report start
-    self.postMessage({ id, type: 'progress', stage: 'parsing', percent: 0 });
 
     try {
         const email = await PostalMime.parse(rawEmail, options);
 
-        self.postMessage({ id, type: 'progress', stage: 'parsing', percent: 50 });
+        // Move the attachment buffers to the main thread instead of copying them
+        const transfer = email.attachments
+            .map(att => (att.content instanceof Uint8Array ? att.content.buffer : att.content))
+            .filter(content => content instanceof ArrayBuffer);
 
-        // Process attachments
-        const attachments = [];
-        for (let i = 0; i < email.attachments.length; i++) {
-            const att = email.attachments[i];
-            attachments.push({
-                filename: att.filename,
-                mimeType: att.mimeType,
-                size: att.content.byteLength
-            });
-
-            const percent = 50 + (i / email.attachments.length) * 50;
-            self.postMessage({
-                id,
-                type: 'progress',
-                stage: 'attachments',
-                percent
-            });
-        }
-
-        self.postMessage({
-            id,
-            type: 'complete',
-            success: true,
-            email: {
-                from: email.from,
-                subject: email.subject,
-                attachments
-            }
-        });
+        self.postMessage({ id, email }, transfer);
     } catch (error) {
-        self.postMessage({
-            id,
-            type: 'complete',
-            success: false,
-            error: error.message
-        });
+        // An Error is cloned without its code property, so send the code along
+        self.postMessage({ id, error: { message: error.message, code: error.code } });
     }
 };
 ```
 
-### Main Thread Handler
+The import loads the ES module build straight from `node_modules`, which works without a build step when the page serves that directory. When the worker is bundled, import from `'postal-mime'` instead, see [Bundlers](#bundlers).
+
+Each attachment has its own buffer, so every buffer can be listed in the transfer list once. After the transfer, the buffers belong to the main thread.
+
+## Calling the worker
 
 ```javascript
-function parseWithProgress(rawEmail, onProgress) {
+// main.js
+const worker = new Worker('./email-worker.js', { type: 'module' });
+
+let nextId = 0;
+const pending = new Map();
+
+worker.onmessage = event => {
+    const { id, email, error } = event.data;
+    const request = pending.get(id);
+    if (!request) {
+        return;
+    }
+    pending.delete(id);
+
+    if (error) {
+        request.reject(Object.assign(new Error(error.message), { code: error.code }));
+    } else {
+        request.resolve(email);
+    }
+};
+
+worker.onerror = event => {
+    console.error('Worker failed:', event.message);
+};
+
+export function parseInWorker(rawEmail, options = {}) {
     return new Promise((resolve, reject) => {
-        const worker = new Worker('./email-worker.js', { type: 'module' });
-        const id = Date.now();
-
-        worker.onmessage = (event) => {
-            const data = event.data;
-
-            if (data.type === 'progress') {
-                onProgress?.(data.stage, data.percent);
-            } else if (data.type === 'complete') {
-                worker.terminate();
-
-                if (data.success) {
-                    resolve(data.email);
-                } else {
-                    reject(new Error(data.error));
-                }
-            }
-        };
-
-        worker.postMessage({ id, rawEmail });
+        const id = ++nextId;
+        pending.set(id, { resolve, reject });
+        worker.postMessage({ id, rawEmail, options });
     });
 }
+```
 
-// Usage
-const email = await parseWithProgress(rawEmail, (stage, percent) => {
-    console.log(`${stage}: ${percent.toFixed(0)}%`);
-    progressBar.value = percent;
+```javascript
+// Usage, for example with a File from an <input type="file">
+import { parseInWorker } from './main.js';
+
+document.querySelector('input[type="file"]').addEventListener('change', async event => {
+    const email = await parseInWorker(event.target.files[0]);
+    console.log(email.subject);
 });
 ```
 
-## TypeScript Worker
+A `File` or `Blob` can be posted to a worker as it is, without reading it on the main thread first. A string, an `ArrayBuffer` or a `Uint8Array` work too; pass an `ArrayBuffer` in the transfer list of `postMessage()` to move it instead of copying it.
 
-### email-worker.ts
+## A worker pool
+
+To parse many messages at once, spread them over several workers. This pool sends each job to an idle worker, or queues it until one is free:
+
+```javascript
+// email-parser-pool.js
+export class EmailParserPool {
+    constructor(size = navigator.hardwareConcurrency || 4) {
+        this.queue = [];
+        this.pending = new Map();
+        this.nextId = 0;
+        this.idle = [];
+        this.workers = Array.from({ length: size }, () => this.createWorker());
+    }
+
+    createWorker() {
+        const worker = new Worker('./email-worker.js', { type: 'module' });
+
+        worker.onmessage = event => {
+            const { id, email, error } = event.data;
+            const request = this.pending.get(id);
+            this.pending.delete(id);
+
+            if (error) {
+                request.reject(Object.assign(new Error(error.message), { code: error.code }));
+            } else {
+                request.resolve(email);
+            }
+            this.release(worker);
+        };
+
+        this.idle.push(worker);
+        return worker;
+    }
+
+    release(worker) {
+        const job = this.queue.shift();
+        if (job) {
+            worker.postMessage(job);
+        } else {
+            this.idle.push(worker);
+        }
+    }
+
+    parse(rawEmail, options = {}) {
+        return new Promise((resolve, reject) => {
+            const job = { id: ++this.nextId, rawEmail, options };
+            this.pending.set(job.id, { resolve, reject });
+
+            const worker = this.idle.pop();
+            if (worker) {
+                worker.postMessage(job);
+            } else {
+                this.queue.push(job);
+            }
+        });
+    }
+
+    terminate() {
+        for (const worker of this.workers) {
+            worker.terminate();
+        }
+        this.workers = [];
+        this.idle = [];
+    }
+}
+```
+
+```javascript
+import { EmailParserPool } from './email-parser-pool.js';
+
+const pool = new EmailParserPool(4);
+
+document.querySelector('input[type="file"][multiple]').addEventListener('change', async event => {
+    const emails = await Promise.all([...event.target.files].map(file => pool.parse(file)));
+    console.log(emails.map(email => email.subject));
+});
+```
+
+Creating a worker costs time and memory, so create the pool once and reuse it.
+
+## TypeScript
 
 ```typescript
-import PostalMime from './node_modules/postal-mime/dist/esm/postal-mime.js';
-import type { Email, PostalMimeOptions } from 'postal-mime';
+// email-worker.ts
+import PostalMime from 'postal-mime';
+import type { Email, PostalMimeOptions, RawEmail } from 'postal-mime';
 
-interface WorkerRequest {
-    id: number;
-    rawEmail: string | ArrayBuffer;
-    options?: PostalMimeOptions;
-}
+export type WorkerRequest = { id: number; rawEmail: RawEmail; options?: PostalMimeOptions };
+export type WorkerResponse =
+    | { id: number; email: Email; error?: undefined }
+    | { id: number; email?: undefined; error: { message: string; code?: string } };
 
-interface WorkerResponse {
-    id: number;
-    success: boolean;
-    email?: Email;
-    error?: string;
-}
-
-self.onmessage = async function(event: MessageEvent<WorkerRequest>) {
+self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     const { id, rawEmail, options } = event.data;
 
     try {
-        const email: Email = await PostalMime.parse(rawEmail, options);
+        const email = await PostalMime.parse(rawEmail, options);
+        const transfer = email.attachments
+            .map(att => (att.content instanceof Uint8Array ? att.content.buffer : att.content))
+            .filter((content): content is ArrayBuffer => content instanceof ArrayBuffer);
 
-        const response: WorkerResponse = {
-            id,
-            success: true,
-            email
-        };
-
-        self.postMessage(response);
-    } catch (error) {
-        const response: WorkerResponse = {
-            id,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        };
-
-        self.postMessage(response);
+        self.postMessage({ id, email } satisfies WorkerResponse, { transfer });
+    } catch (err) {
+        const { message, code } = err as Error & { code?: string };
+        self.postMessage({ id, error: { message, code } } satisfies WorkerResponse);
     }
 };
 ```
 
-## Using with Bundlers
+Compile the worker with the `webworker` library in `lib`, so that `self` has the worker type.
 
-### Webpack
+## Bundlers
 
-Webpack 5 bundles a worker without any loader when it is created from a `new URL()` relative to the current module:
-
-```javascript
-const worker = new Worker(
-    new URL('./email-worker.js', import.meta.url),
-    { type: 'module' }
-);
-```
-
-### Vite
+Webpack 5 and Vite both bundle a module worker that is created from a `new URL()` relative to the current module, with no plugin or loader. In a bundled worker, import `postal-mime` by name:
 
 ```javascript
-// Works out of the box with Vite
-const worker = new Worker(
-    new URL('./email-worker.js', import.meta.url),
-    { type: 'module' }
-);
+const worker = new Worker(new URL('./email-worker.js', import.meta.url), { type: 'module' });
 ```
 
 ## Considerations
 
-1. **Structured Clone**: Worker communication uses structured cloning, which handles most data types but not functions or circular references.
+- **Memory.** Each worker holds the messages it parses. Transfer attachment buffers instead of copying them, and drop references to parsed messages you no longer need.
+- **Untrusted HTML.** Moving the parse into a worker does not make `html` safe. Render it in a sandboxed iframe or sanitize it, see the [Security guide](../guides/security#5-sanitize-html-content).
+- **Errors.** The structured clone keeps an error's `message` but drops custom properties such as `code`, which is why the worker above sends the code explicitly.
 
-2. **Memory**: Each worker has its own memory. For large emails, consider using Transferable objects.
+## See Also
 
-3. **Worker Lifecycle**: Create workers once and reuse them. Creating workers is expensive.
-
-4. **Error Handling**: Always handle worker errors:
-
-```javascript
-worker.onerror = (error) => {
-    console.error('Worker error:', error);
-};
-```
+- [Email Viewer example](./email-viewer) - Showing a parsed message in a page
+- [Parsing Emails](../guides/parsing-emails) - Input types the parser accepts
+- [Errors](../api/errors) - The codes to send back from a worker
+- [Installation](../getting-started/installation#browsers-without-a-bundler) - Loading postal-mime without a bundler
