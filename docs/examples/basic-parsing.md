@@ -262,6 +262,48 @@ fileInput.addEventListener('change', async (event) => {
 });
 ```
 
+## Cloudflare Email Worker
+
+In a Cloudflare Email Worker, pass `message.raw` (a `ReadableStream`) straight to the parser. The stream can only be read once, so parse it a single time and reuse the result.
+
+```javascript
+import PostalMime from 'postal-mime';
+
+export default {
+    async email(message, env, ctx) {
+        const email = await PostalMime.parse(message.raw);
+
+        console.log('Envelope from:', message.from);
+        console.log('Envelope to:', message.to);
+        console.log('From:', email.from?.address);
+        console.log('Subject:', email.subject);
+        console.log('Text:', email.text);
+        console.log('Attachments:', email.attachments.length);
+
+        await message.forward('inbox@example.com');
+    }
+};
+```
+
+The same worker in TypeScript:
+
+```typescript
+import PostalMime from 'postal-mime';
+import type { Email } from 'postal-mime';
+
+export default {
+    async email(message: ForwardableEmailMessage, env: unknown, ctx: ExecutionContext): Promise<void> {
+        const email: Email = await PostalMime.parse(message.raw);
+
+        console.log('Subject:', email.subject);
+
+        await message.forward('inbox@example.com');
+    }
+};
+```
+
+See the [Cloudflare Workers guide](../guides/cloudflare-workers) for local testing with Wrangler, storing attachments in R2 and more patterns.
+
 ## Error Handling
 
 ```javascript
