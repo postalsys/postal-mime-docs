@@ -60,6 +60,7 @@ Limit options must be non-negative integers, and `maxPartCount` a positive one, 
 | `deliveredTo`, `returnPath` | `string` | Address only |
 | `subject`, `messageId`, `inReplyTo`, `references` | `string` | First occurrence, encoded words decoded |
 | `date` | `string` | ISO 8601, or the raw value if unparseable |
+| `otp` | `{ code, origin }` | From a single top-level `OTP-Token` header (draft-goto-otp-token) with a canonical https (or loopback http) origin, absent otherwise. Not authenticated, verify DKIM for the origin domain. Experimental, follows the draft |
 | `text`, `html` | `string` | LF line endings. Absent when the message has no part of either type; filled by conversion when the message mixes types. `html` is not sanitized |
 | `attachments` | `Attachment[]` | Always present |
 

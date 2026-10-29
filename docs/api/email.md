@@ -49,6 +49,7 @@ console.log(email.html);      // undefined
 | `inReplyTo` | `string` | The first `In-Reply-To` header |
 | `references` | `string` | The first `References` header, a space separated list of message IDs as written |
 | `date` | `string` | The first `Date` header as an ISO 8601 string, see [Date](#date) |
+| `otp` | `Otp` | The one-time passcode of the `OTP-Token` header, see [One-time passcode](#one-time-passcode) (since 4.2.0, experimental) |
 | `text` | `string` | The plain text body, see [Text and HTML](#text-and-html) |
 | `html` | `string` | The HTML body, see [Text and HTML](#text-and-html) |
 | `attachments` | [`Attachment[]`](#attachment-object) | Every part that is not part of the body |
@@ -167,6 +168,35 @@ import PostalMime from 'postal-mime';
 console.log((await PostalMime.parse('Date: Mon, 15 Jan 2024 10:30:00 +0200\n\nx')).date); // "2024-01-15T08:30:00.000Z"
 console.log((await PostalMime.parse('Date: yesterday\n\nx')).date);                       // "yesterday"
 ```
+
+## One-time passcode
+
+`otp` is read from the `OTP-Token` header defined by [draft-goto-otp-token](https://datatracker.ietf.org/doc/draft-goto-otp-token/), which a sender such as Nodemailer (its `otp` option) adds to a message carrying a one-time passcode, so that a mail client can offer the code for the site it belongs to. It is an object with two strings:
+
+- `code`: the passcode
+- `origin`: the origin the passcode is bound to, such as `"https://example.com"`
+
+```javascript
+import PostalMime from 'postal-mime';
+
+const email = await PostalMime.parse('OTP-Token: "123456"; origin="https://example.com"\n\nYour code is 123456');
+console.log(email.otp); // { code: '123456', origin: 'https://example.com' }
+```
+
+The header is read following the receiver steps of the draft, and `otp` is left out when any of them fails:
+
+- The message header has exactly one `OTP-Token` header. With two or more, the message has no passcode. An `OTP-Token` header of a MIME part or a forwarded message is ignored.
+- The value is a structured field Item (RFC 9651) whose bare item is a non-empty String, with an `origin` parameter that is a String. Other parameters are ignored, but they must be valid structured field syntax. A later parameter with the same name replaces an earlier one.
+- The value is at most 8192 characters long.
+- The origin is the canonical serialization of an `https` origin, or of an `http` origin on a loopback host (`localhost`, `*.localhost`, `127.x.x.x` or `[::1]`): lowercase, ASCII, no default port, no path and no trailing slash.
+
+:::note
+The header is defined by an Internet-Draft that is still a work in progress, so `otp` is experimental and may change in a minor release when the draft does.
+:::
+
+:::warning
+The header is set by whoever sent the message and is not authenticated by the parser. Before offering the code, check that the message carries a valid DKIM signature from the domain of the origin that covers the `OTP-Token` header (it is listed in the `h=` tag of the signature), for example with [mailauth](https://github.com/postalsys/mailauth).
+:::
 
 ## Text and HTML
 

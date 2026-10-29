@@ -21,6 +21,7 @@ import type {
     AddressGroup,
     Header,
     HeaderLine,
+    Otp,
     Attachment,
     AttachmentDisposition,
     AttachmentEncoding,
@@ -93,6 +94,7 @@ type Email = {
     inReplyTo?: string | undefined;
     references?: string | undefined;
     date?: string | undefined;
+    otp?: Otp | undefined;
     html?: string | undefined;
     text?: string | undefined;
     attachments: Attachment[];
@@ -100,6 +102,17 @@ type Email = {
 ```
 
 See [Email Object](./email#properties).
+
+### Otp
+
+```typescript
+type Otp = {
+    code: string;
+    origin: string;
+};
+```
+
+See [One-time passcode](./email#one-time-passcode).
 
 ### Header and HeaderLine
 
